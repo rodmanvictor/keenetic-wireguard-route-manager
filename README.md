@@ -63,7 +63,7 @@ Keenetic.
 
 - Keenetic с KeeneticOS;
 - логин и пароль администратора роутера;
-- Windows 10/11 или 64-битный Linux;
+- Windows 10/11, 64-битный Linux или macOS на Apple Silicon/Intel;
 - WireGuard-конфиг, QR-код или уже настроенный туннель.
 
 ### Windows 10 и 11
