@@ -24,6 +24,8 @@ IPv6-маршруты каждые 6 часов и не требует вруч�
 
 ## Скачать
 
+**Актуальная версия: 0.3.2** · выпуски публикуются для Windows, Linux и macOS.
+
 | Система | Готовый файл | Подробная инструкция |
 |---|---|---|
 | 🪟 **Windows 10/11** | [Скачать ZIP](https://github.com/rodmanvictor/packetech/releases/download/v0.3.2/packetech-0.3.2-windows-x86_64.zip) | [Установка в Windows](docs/guides/windows.md) |
