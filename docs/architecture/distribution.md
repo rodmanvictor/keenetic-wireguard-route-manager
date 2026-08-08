@@ -40,3 +40,8 @@ python scripts/build-cli.py
 ```
 
 macOS-приложение должно собираться на macOS, Windows-приложение — на Windows. Подпись Apple Developer ID и Microsoft Authenticode в первой версии не настроена: операционная система может показать предупреждение о неизвестном издателе.
+
+Первая macOS-сборка выпускается для x64 на официальном runner
+`macos-15-intel`. На Apple Silicon она запускается через Rosetta 2; отдельный
+нативный arm64-архив можно добавить после появления согласованного ARM-набора
+Python/CFFI wheels в используемом Flet pipeline.

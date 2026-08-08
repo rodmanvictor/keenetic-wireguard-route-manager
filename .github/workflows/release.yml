@@ -11,6 +11,10 @@ permissions:
 
 jobs:
   build:
+    env:
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
+      FLET_CLI_NO_RICH_OUTPUT: "1"
     strategy:
       fail-fast: false
       matrix:
@@ -21,7 +25,7 @@ jobs:
           - os: windows-latest
             platform: windows
             flet_target: windows
-          - os: macos-latest
+          - os: macos-15-intel
             platform: macos
             flet_target: macos
     runs-on: ${{ matrix.os }}
@@ -54,6 +58,8 @@ jobs:
           --org ru.rodman
           --description "Selective WireGuard routing for KeeneticOS"
           --output dist/desktop
+          --python-version 3.12
+          --no-rich-output
           --yes
       - name: Archive native applications
         run: python scripts/package-release.py --platform ${{ matrix.platform }}

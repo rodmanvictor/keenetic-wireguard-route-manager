@@ -30,6 +30,8 @@ fi
   --org ru.rodman \
   --description "Управление доменами и маршрутами WireGuard на Keenetic" \
   --output dist/desktop \
+  --python-version 3.12 \
+  --no-rich-output \
   --yes
 
 echo "[OK] Built artifact: dist/desktop"
