@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PackeTech · открыть сайт",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1xhDcDhZYEAbDMUhMLvZ+uobcAUrbxhIhAZ7uNhpS/gNrd4xt8IixsdXWeiCO7UYgoDf7DPOI7GS9MrkLeX5i4Kwp26gJb5QTyCRXY369Y5EJxxh/RobNnip1Xcuynx+xcpA3EoWACdnzJC6rtciR5HixE95zk0dlipzH6o9Mr7zakH6ijWDByQ0lWcSDt7myCL30ecsMMhONgEJtf5LDuG19tcd4Mthee3iZuwyH3Ep7lJ0ufLVZhHzMjAX345+OoQslsQuLAueWzAnieVD8cyrbUL1gcboDO3MA4BQimtKtkundZQrKZskNp9OpQwEHLIzG5qPl7Fa7WWyACrZVwIDAQAB",
   "description": "Добавляет текущий сайт в маршруты WireGuard и запоминает источник Chrome.",
   "permissions": [

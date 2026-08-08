@@ -2,8 +2,8 @@
 
 ## Шаг 1. Выбрать сборку
 
-- Mac на M1, M2, M3, M4 или M5: [Apple Silicon DMG](https://github.com/rodmanvictor/packetech/releases/download/v0.3.1/packetech-0.3.1-macos-arm64.dmg);
-- Mac на Intel: [Intel DMG](https://github.com/rodmanvictor/packetech/releases/download/v0.3.1/packetech-0.3.1-macos-x86_64.dmg).
+- Mac на M1, M2, M3, M4 или M5: [Apple Silicon DMG](https://github.com/rodmanvictor/packetech/releases/download/v0.3.2/packetech-0.3.2-macos-arm64.dmg);
+- Mac на Intel: [Intel DMG](https://github.com/rodmanvictor/packetech/releases/download/v0.3.2/packetech-0.3.2-macos-x86_64.dmg).
 
 Архитектура указана в меню Apple → **«Об этом Mac»**.
 

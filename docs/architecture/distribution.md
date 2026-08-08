@@ -2,7 +2,7 @@
 
 ## Публикуемые файлы
 
-Версия 0.3.1 публикуется для Windows 10/11, Linux и macOS:
+Версия 0.3.2 публикуется для Windows 10/11, Linux и macOS:
 
 - `packetech_<version>_amd64.deb` — Debian, Ubuntu и Linux Mint;
 - `packetech-<version>-linux-x86_64.tar.gz` — переносимый Linux GUI и CLI;
@@ -41,7 +41,7 @@ Windows-сборка создается на нативном `windows-latest`. 
 `PackeTech route sync` с интервалом шесть часов. Папку нельзя переносить по
 одному файлу: задача ссылается на абсолютный путь к `PackeTech-CLI.exe`.
 
-Windows-файлы версии 0.3.1 не подписаны Authenticode. SmartScreen может
+Windows-файлы версии 0.3.2 не подписаны Authenticode. SmartScreen может
 предупредить о неизвестном издателе.
 
 ## macOS DMG
@@ -59,7 +59,7 @@ Windows-файлы версии 0.3.1 не подписаны Authenticode. Smar
 должен сначала перенести приложение в `/Applications`, иначе расписание будет
 ссылаться на временно смонтированный DMG.
 
-Apple Developer ID и нотаризация в версии 0.3.1 не используются. Первый запуск:
+Apple Developer ID и нотаризация в версии 0.3.2 не используются. Первый запуск:
 контекстное меню приложения → «Открыть».
 
 ## Изменяемые данные
@@ -105,3 +105,11 @@ python scripts/package-macos.py
 выполняют offline-тесты. Linux и Windows собираются через PyInstaller, macOS —
 штатной командой Flet поверх Flutter/Xcode. Теговый запуск прикладывает Linux,
 Windows и обе macOS-архитектуры к одному GitHub Release.
+
+## Проверка обновлений из приложения
+
+GUI обращается к публичному `GET /repos/rodmanvictor/packetech/releases/latest`,
+сравнивает числовую версию и выбирает файл по ОС и архитектуре. Скачанный пакет
+сверяется с соответствующим `SHA256SUMS-*.txt` или SHA-256 digest из GitHub.
+Приложение не заменяет собственный исполняемый файл: проверенный DEB, ZIP или
+DMG передаётся штатному обработчику операционной системы.

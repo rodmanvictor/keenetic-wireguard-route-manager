@@ -10,6 +10,7 @@ WireGuard importer.
 import asyncio
 from dataclasses import replace
 from importlib.resources import files
+from pathlib import Path
 
 import flet as ft
 
@@ -52,6 +53,14 @@ from keenetic_router.integrations.chrome_installer import (
     prepare_chrome_extension,
     reveal_extension_directory,
 )
+from keenetic_router import __version__
+from keenetic_router.services.updates import (
+    UpdateInfo,
+    download_update,
+    fetch_latest_release,
+    installation_hint,
+    open_downloaded_update,
+)
 
 
 BG = '#0B0E0C'
@@ -87,6 +96,9 @@ class RouteDesktop:
         self.tunnel_statuses = {}
         self.component_states = {}
         self.chrome_installation = None
+        self.update_info: UpdateInfo | None = None
+        self.update_button = None
+        self.update_check_started = False
         self.rows = []
         self.selected_id = None
         self.busy = False
@@ -237,6 +249,9 @@ class RouteDesktop:
                 return
             self.render_dashboard()
             self.reload_data()
+            if not self.update_check_started:
+                self.update_check_started = True
+                self.page.run_task(self.check_for_updates)
 
         connect_button = ft.Button(
             content=button_content('Подключиться'),
@@ -896,6 +911,170 @@ class RouteDesktop:
         )
         self.page.show_dialog(dialog)
 
+    async def check_for_updates(self, _event=None, manual=False):
+        """Check GitHub in the background and show a stable update notice.
+
+        Automatic failures stay silent so an unavailable network never blocks
+        router work. Manual checks show a useful error dialog.
+        """
+        if self.update_button is not None:
+            self.update_button.disabled = True
+            self.update_button.icon = ft.Icons.HOURGLASS_TOP
+            self.page.update()
+        try:
+            info = await asyncio.to_thread(fetch_latest_release)
+        except Exception as exception:
+            if self.update_button is not None:
+                self.update_button.disabled = False
+                self.update_button.icon = ft.Icons.SYSTEM_UPDATE_ALT
+                self.page.update()
+            if manual:
+                self._show_error(f'Не удалось проверить обновления: {exception}')
+            return
+        self.update_info = info
+        if self.update_button is not None:
+            self.update_button.disabled = False
+            self.update_button.icon = (
+                ft.Icons.DOWNLOAD_FOR_OFFLINE if info.available else ft.Icons.SYSTEM_UPDATE_ALT
+            )
+            self.update_button.icon_color = ACID if info.available else MUTED
+            self.update_button.tooltip = (
+                f'Доступно обновление {info.latest_version}'
+                if info.available
+                else f'Установлена свежая версия {__version__}'
+            )
+        if info.available:
+            notice = ft.SnackBar(
+                content=ft.Text(
+                    f'Вышла новая версия PackeTech {info.latest_version}',
+                    color=TEXT,
+                    weight=ft.FontWeight.BOLD,
+                ),
+                action='Скачать',
+                on_action=self.open_update_manager,
+                bgcolor=PANEL_ACTIVE,
+                show_close_icon=True,
+                close_icon_color=MUTED,
+                duration=10000,
+            )
+            self.page.show_dialog(notice)
+        elif manual:
+            self.open_update_manager()
+        self.page.update()
+
+    def open_update_manager(self, _event=None):
+        """Show version state and download a verified native package."""
+        info = self.update_info
+        if info is None:
+            self.page.run_task(self.check_for_updates, None, True)
+            return
+        progress = ft.ProgressBar(value=0, color=ACID, bgcolor=LINE, height=5)
+        progress_slot = ft.Container(height=5, content=progress, visible=False)
+        detail = ft.Text(
+            installation_hint() if info.available else 'У вас уже установлена последняя версия.',
+            color=MUTED,
+            size=12,
+        )
+
+        async def download(_event=None):
+            if info.asset is None:
+                self._show_error('Для этой системы пока нет готовой сборки PackeTech.')
+                return
+            download_button.disabled = True
+            download_button.content = ft.Row(
+                tight=True,
+                spacing=9,
+                controls=[
+                    ft.ProgressRing(width=16, height=16, stroke_width=2, color=BG),
+                    ft.Text('Скачиваю…', weight=ft.FontWeight.BOLD),
+                ],
+            )
+            progress_slot.visible = True
+            self.page.update()
+            loop = asyncio.get_running_loop()
+
+            def report(received, total):
+                def apply_progress():
+                    progress.value = received / total if total else None
+                    self.page.update()
+
+                loop.call_soon_threadsafe(apply_progress)
+
+            try:
+                path = await asyncio.to_thread(download_update, info, callback=report)
+            except Exception as exception:
+                download_button.disabled = False
+                download_button.content = 'Скачать обновление'
+                download_button.icon = ft.Icons.DOWNLOAD
+                progress_slot.visible = False
+                self.page.update()
+                self._show_error(str(exception))
+                return
+            progress.value = 1
+            detail.value = f'Файл проверен и сохранён:\n{path}\n\n{installation_hint()}'
+            download_button.disabled = False
+            download_button.content = 'Открыть установку'
+            download_button.icon = ft.Icons.OPEN_IN_NEW
+            download_button.on_click = lambda _e: open_downloaded_update(Path(path))
+            self.page.update()
+            open_downloaded_update(path)
+
+        if info.available:
+            if info.asset is None:
+                button_label = 'Сборки для этой системы нет'
+                button_disabled = True
+            else:
+                button_label = 'Скачать обновление'
+                button_disabled = False
+            download_button = ft.Button(
+                button_label,
+                icon=ft.Icons.DOWNLOAD,
+                bgcolor=ACID,
+                color=BG,
+                disabled=button_disabled,
+                on_click=download,
+            )
+        else:
+            download_button = ft.Button(
+                'Готово',
+                bgcolor=ACID,
+                color=BG,
+                on_click=lambda _e: self.page.pop_dialog(),
+            )
+        size_text = ''
+        if info.asset and info.asset.size:
+            size_text = f' · {info.asset.size / 1024 / 1024:.0f} МБ'
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text('Обновление PackeTech'),
+            content=ft.Column(
+                tight=True,
+                width=500,
+                spacing=14,
+                controls=[
+                    ft.Row(
+                        controls=[
+                            ft.Text(f'Сейчас: {info.current_version}', color=MUTED),
+                            ft.Icon(ft.Icons.ARROW_FORWARD, color=MUTED, size=16),
+                            ft.Text(f'На GitHub: {info.latest_version}', color=ACID),
+                        ]
+                    ),
+                    ft.Text(
+                        f'{info.asset.name}{size_text}' if info.asset else 'Нет совместимого файла',
+                        color=TEXT,
+                        weight=ft.FontWeight.BOLD,
+                    ),
+                    detail,
+                    progress_slot,
+                ],
+            ),
+            actions=[
+                ft.Button('Закрыть', on_click=lambda _e: self.page.pop_dialog()),
+                download_button,
+            ],
+        )
+        self.page.show_dialog(dialog)
+
     def open_chrome_manager(self, _event=None):
         """Show the guided Chrome extension installation flow.
 
@@ -1077,6 +1256,12 @@ class RouteDesktop:
             tooltip='Проверить DNS и маршруты сейчас',
             on_click=self.sync_all,
         )
+        self.update_button = ft.IconButton(
+            icon=ft.Icons.SYSTEM_UPDATE_ALT,
+            icon_color=MUTED,
+            tooltip=f'Проверить обновления · сейчас {__version__}',
+            on_click=lambda event: self.page.run_task(self.check_for_updates, event, True),
+        )
         return ft.Container(
             padding=ft.Padding.symmetric(horizontal=24, vertical=18),
             border=ft.Border(bottom=ft.BorderSide(1, LINE)),
@@ -1122,6 +1307,7 @@ class RouteDesktop:
                         on_click=self.open_chrome_manager,
                     ),
                     self.sync_button,
+                    self.update_button,
                     ft.IconButton(
                         icon=ft.Icons.LOGOUT,
                         icon_color=MUTED,

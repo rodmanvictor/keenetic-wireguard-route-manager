@@ -5,5 +5,6 @@
 - [macOS](macos.md): выбор архитектуры, DMG, Gatekeeper и терминальная команда.
 - [Командная строка и TUI](terminal.md): установка через Python, основные команды и интерактивное меню.
 - [Расширение Chrome](chrome-extension.md): установка из PackeTech и одно подтверждение в Chrome на Windows, Linux и macOS.
+- [Обновление PackeTech](updates.md): автоматическая проверка версии, скачивание и установка для каждой ОС.
 - [Первый запуск и импорт WireGuard](first-run.md): подключение нового Keenetic, включение SSH, установка компонентов, `.conf` и QR.
 - [Подсети Google](google-subnets.md): получение диапазонов Google и добавление их через TUI или сервисные утилиты.

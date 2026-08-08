@@ -64,6 +64,87 @@ from keenetic_router.integrations.chrome_installer import (
     prepare_chrome_extension,
 )
 from keenetic_router.integrations.chrome_host import choose_tunnel
+from keenetic_router.services.updates import (
+    ReleaseAsset,
+    UpdateInfo,
+    _expected_checksum,
+    download_update,
+    is_newer_version,
+    select_release_assets,
+)
+
+
+class ApplicationUpdateTests(unittest.TestCase):
+    """Verify version comparison, package selection, and integrity checks."""
+
+    def test_compares_numeric_release_versions(self):
+        """Patch releases compare numerically instead of alphabetically."""
+        self.assertTrue(is_newer_version('0.3.10', '0.3.2'))
+        self.assertTrue(is_newer_version('v1.0.0', '0.9.9'))
+        self.assertFalse(is_newer_version('0.3.2', '0.3.2'))
+        self.assertFalse(is_newer_version('unknown', '0.3.2'))
+
+    def test_selects_native_assets_for_supported_systems(self):
+        """Each packaged operating system receives its expected file pair."""
+        names = [
+            'packetech_0.3.2_amd64.deb',
+            'SHA256SUMS-linux.txt',
+            'packetech-0.3.2-windows-x86_64.zip',
+            'SHA256SUMS-windows.txt',
+            'packetech-0.3.2-macos-arm64.dmg',
+            'SHA256SUMS-macos-arm64.txt',
+            'packetech-0.3.2-macos-x86_64.dmg',
+            'SHA256SUMS-macos-x86_64.txt',
+        ]
+        assets = [ReleaseAsset(name, f'https://example.test/{name}') for name in names]
+        linux, linux_sum = select_release_assets(
+            assets, 'v0.3.2', system='Linux', machine='AMD64'
+        )
+        windows, windows_sum = select_release_assets(
+            assets, '0.3.2', system='Windows', machine='x86_64'
+        )
+        mac_arm, mac_arm_sum = select_release_assets(
+            assets, '0.3.2', system='Darwin', machine='aarch64'
+        )
+        mac_intel, mac_intel_sum = select_release_assets(
+            assets, '0.3.2', system='Darwin', machine='x86_64'
+        )
+        self.assertEqual(linux.name, 'packetech_0.3.2_amd64.deb')
+        self.assertEqual(linux_sum.name, 'SHA256SUMS-linux.txt')
+        self.assertEqual(windows.name, 'packetech-0.3.2-windows-x86_64.zip')
+        self.assertEqual(windows_sum.name, 'SHA256SUMS-windows.txt')
+        self.assertEqual(mac_arm.name, 'packetech-0.3.2-macos-arm64.dmg')
+        self.assertEqual(mac_arm_sum.name, 'SHA256SUMS-macos-arm64.txt')
+        self.assertEqual(mac_intel.name, 'packetech-0.3.2-macos-x86_64.dmg')
+        self.assertEqual(mac_intel_sum.name, 'SHA256SUMS-macos-x86_64.txt')
+
+    def test_unsupported_architecture_has_no_package(self):
+        """The updater never guesses a package for an unsupported CPU."""
+        package, checksum = select_release_assets(
+            [], '0.3.2', system='Linux', machine='arm64'
+        )
+        self.assertIsNone(package)
+        self.assertIsNone(checksum)
+
+    def test_extracts_only_exact_checksum_filename(self):
+        """A similarly named file cannot supply another asset's digest."""
+        contents = 'a' * 64 + '  app.zip.old\n' + 'b' * 64 + ' *app.zip\n'
+        self.assertEqual(_expected_checksum(contents, 'app.zip'), 'b' * 64)
+
+    def test_rejects_download_when_digest_does_not_match(self):
+        """A corrupted partial update is deleted before it can be opened."""
+        asset = ReleaseAsset('app.zip', 'https://example.test/app.zip', digest='sha256:' + '0' * 64)
+        info = UpdateInfo('0.3.1', '0.3.2', '', asset, None, True)
+
+        def fake_download(_url, destination, _callback=None):
+            destination.write_bytes(b'corrupted')
+
+        with tempfile.TemporaryDirectory() as directory, patch(
+            'keenetic_router.services.updates._download', side_effect=fake_download
+        ):
+            with self.assertRaisesRegex(RuntimeError, 'Контрольная сумма'):
+                download_update(info, directory=Path(directory))
+            self.assertFalse((Path(directory) / 'app.zip.part').exists())
 
 
 class TunnelNameTests(unittest.TestCase):

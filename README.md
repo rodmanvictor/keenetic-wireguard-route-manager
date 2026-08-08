@@ -26,11 +26,11 @@ IPv6-маршруты каждые 6 часов и не требует вруч�
 
 | Система | Готовый файл | Подробная инструкция |
 |---|---|---|
-| 🪟 **Windows 10/11** | [Скачать ZIP](https://github.com/rodmanvictor/packetech/releases/download/v0.3.1/packetech-0.3.1-windows-x86_64.zip) | [Установка в Windows](docs/guides/windows.md) |
-| 🐧 **Ubuntu, Debian, Mint** | [Скачать DEB](https://github.com/rodmanvictor/packetech/releases/download/v0.3.1/packetech_0.3.1_amd64.deb) | [Установка в Linux](docs/guides/linux.md) |
-| 🐧 **Другой Linux x86-64** | [Скачать TAR.GZ](https://github.com/rodmanvictor/packetech/releases/download/v0.3.1/packetech-0.3.1-linux-x86_64.tar.gz) | [Переносимая версия](docs/guides/linux.md#переносимая-версия) |
-| 🍎 **Mac с Apple Silicon** | [Скачать DMG](https://github.com/rodmanvictor/packetech/releases/download/v0.3.1/packetech-0.3.1-macos-arm64.dmg) | [Установка в macOS](docs/guides/macos.md) |
-| 🍎 **Mac с Intel** | [Скачать DMG](https://github.com/rodmanvictor/packetech/releases/download/v0.3.1/packetech-0.3.1-macos-x86_64.dmg) | [Установка в macOS](docs/guides/macos.md) |
+| 🪟 **Windows 10/11** | [Скачать ZIP](https://github.com/rodmanvictor/packetech/releases/download/v0.3.2/packetech-0.3.2-windows-x86_64.zip) | [Установка в Windows](docs/guides/windows.md) |
+| 🐧 **Ubuntu, Debian, Mint** | [Скачать DEB](https://github.com/rodmanvictor/packetech/releases/download/v0.3.2/packetech_0.3.2_amd64.deb) | [Установка в Linux](docs/guides/linux.md) |
+| 🐧 **Другой Linux x86-64** | [Скачать TAR.GZ](https://github.com/rodmanvictor/packetech/releases/download/v0.3.2/packetech-0.3.2-linux-x86_64.tar.gz) | [Переносимая версия](docs/guides/linux.md#переносимая-версия) |
+| 🍎 **Mac с Apple Silicon** | [Скачать DMG](https://github.com/rodmanvictor/packetech/releases/download/v0.3.2/packetech-0.3.2-macos-arm64.dmg) | [Установка в macOS](docs/guides/macos.md) |
+| 🍎 **Mac с Intel** | [Скачать DMG](https://github.com/rodmanvictor/packetech/releases/download/v0.3.2/packetech-0.3.2-macos-x86_64.dmg) | [Установка в macOS](docs/guides/macos.md) |
 
 Все файлы выпуска: [GitHub Releases](https://github.com/rodmanvictor/packetech/releases/latest).
 
@@ -98,6 +98,7 @@ packetech tui             # интерактивное терминальное 
 - добавлять домен или полный URL;
 - направлять каждый сайт через выбранный WireGuard-профиль;
 - показывать названия VPN, заданные на роутере;
+- сообщать о новой версии, скачивать подходящую сборку и проверять SHA-256;
 - работать с DNS A/AAAA и маршрутами IPv4 `/32` и IPv6 `/128`;
 - обновлять адреса автоматически или по кнопке;
 - импортировать WireGuard из `.conf` и QR-кода;
