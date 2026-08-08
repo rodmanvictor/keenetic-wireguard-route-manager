@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Keenetic · открыть сайт",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Добавляет текущий сайт в маршруты srv01 и запоминает источник Chrome.",
   "permissions": [
     "activeTab",
