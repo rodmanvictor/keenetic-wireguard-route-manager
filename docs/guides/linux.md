@@ -4,7 +4,7 @@
 
 ### Шаг 1. Скачать
 
-Скачайте [DEB-пакет PackeTech](https://github.com/rodmanvictor/packetech/releases/download/v0.3.0/packetech_0.3.0_amd64.deb).
+Скачайте [DEB-пакет PackeTech](https://github.com/rodmanvictor/packetech/releases/download/v0.3.1/packetech_0.3.1_amd64.deb).
 
 ### Шаг 2. Установить
 
@@ -12,7 +12,7 @@
 установщик не сработал:
 
 ```bash
-sudo apt install ./packetech_0.3.0_amd64.deb
+sudo apt install ./packetech_0.3.1_amd64.deb
 ```
 
 ### Шаг 3. Запустить
@@ -26,11 +26,11 @@ packetech
 ## Переносимая версия
 
 Для другого 64-битного Linux скачайте
-[TAR.GZ](https://github.com/rodmanvictor/packetech/releases/download/v0.3.0/packetech-0.3.0-linux-x86_64.tar.gz),
+[TAR.GZ](https://github.com/rodmanvictor/packetech/releases/download/v0.3.1/packetech-0.3.1-linux-x86_64.tar.gz),
 распакуйте его и запустите `packetech`. Установка Python не нужна.
 
 ```bash
-tar -xzf packetech-0.3.0-linux-x86_64.tar.gz
+tar -xzf packetech-0.3.1-linux-x86_64.tar.gz
 cd packetech
 ./packetech
 ```
@@ -54,4 +54,3 @@ packetech tui
 
 Каталог профиля получает права `700`, файл — `600`. Пароль записан без
 дополнительного шифрования и доступен программам текущего пользователя Linux.
-

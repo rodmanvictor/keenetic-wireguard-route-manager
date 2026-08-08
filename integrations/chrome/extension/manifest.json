@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PackeTech · открыть сайт",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Добавляет текущий сайт в маршруты WireGuard и запоминает источник Chrome.",
   "permissions": [
     "activeTab",

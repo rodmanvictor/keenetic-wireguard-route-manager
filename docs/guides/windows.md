@@ -2,7 +2,7 @@
 
 ## Шаг 1. Скачать
 
-Скачайте [PackeTech для Windows](https://github.com/rodmanvictor/packetech/releases/download/v0.3.0/packetech-0.3.0-windows-x86_64.zip).
+Скачайте [PackeTech для Windows](https://github.com/rodmanvictor/packetech/releases/download/v0.3.1/packetech-0.3.1-windows-x86_64.zip).
 
 Архив рассчитан на 64-битные Windows 10 и 11. Python, Git и другие программы
 не нужны.
@@ -47,4 +47,3 @@
 - домены и история: `%LOCALAPPDATA%\KeeneticRouteManager\route-sync.sqlite3`.
 
 Пароль записан в JSON без шифрования. Не отправляйте этот файл другим людям.
-
