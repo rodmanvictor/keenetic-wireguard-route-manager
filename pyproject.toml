@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "paketych"
+name = "packetech"
 version = "0.3.0"
 description = "Route selected websites through WireGuard on Keenetic routers"
 readme = "README.md"
@@ -16,10 +16,12 @@ keywords = ["keenetic", "wireguard", "routing", "vpn"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",
+    "Environment :: MacOS X",
     "Environment :: Win32 (MS Windows)",
     "Environment :: X11 Applications",
     "Operating System :: Microsoft :: Windows :: Windows 10",
     "Operating System :: Microsoft :: Windows :: Windows 11",
+    "Operating System :: MacOS :: MacOS X",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3",
     "Topic :: System :: Networking",
@@ -33,11 +35,12 @@ dependencies = [
 ]
 
 [project.urls]
-Documentation = "https://github.com/rodmanvictor/paketych"
-Issues = "https://github.com/rodmanvictor/paketych/issues"
-Source = "https://github.com/rodmanvictor/paketych"
+Documentation = "https://github.com/rodmanvictor/packetech"
+Issues = "https://github.com/rodmanvictor/packetech/issues"
+Source = "https://github.com/rodmanvictor/packetech"
 
 [project.scripts]
+packetech = "keenetic_router.apps.desktop:run"
 paketych = "keenetic_router.apps.desktop:run"
 kwtui = "keenetic_router.apps.tui:main"
 kwan = "keenetic_router.apps.cli:main"

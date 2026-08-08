@@ -17,7 +17,12 @@ from keenetic_router.core.router import (
 )
 from keenetic_router.core.onboarding import bootstrap_router, parse_component_states
 from keenetic_router.core.profiles import RouterProfile, load_profile, save_profile
-from keenetic_router.core.scheduler import enable_windows_task, write_user_units
+from keenetic_router.core.scheduler import (
+    enable_macos_launch_agent,
+    enable_windows_task,
+    write_macos_launch_agent,
+    write_user_units,
+)
 from keenetic_router.core.wireguard import (
     delete_wireguard_tunnel,
     import_wireguard_profile,
@@ -343,7 +348,7 @@ class SchedulerTests(unittest.TestCase):
         """Generated units retain a spaced path and the requested interval."""
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            cli = root / 'Пакетыч CLI' / 'kwan'
+            cli = root / 'PackeTech CLI' / 'kwan'
             cli.parent.mkdir()
             cli.write_text('#!/bin/sh\n', encoding='utf-8')
             service, timer = write_user_units(cli, root / 'units')
@@ -353,17 +358,50 @@ class SchedulerTests(unittest.TestCase):
     def test_windows_task_runs_kwan_every_six_hours(self):
         """Task Scheduler receives the frozen CLI path and six-hour interval."""
         with tempfile.TemporaryDirectory() as directory:
-            cli = Path(directory) / 'Пакетыч' / 'kwan.exe'
+            cli = Path(directory) / 'PackeTech' / 'kwan.exe'
             cli.parent.mkdir()
             cli.write_bytes(b'MZ')
             with patch('keenetic_router.core.scheduler.subprocess.run') as run:
                 result = enable_windows_task(cli)
             self.assertTrue(result.enabled)
-            command = run.call_args.args[0]
+            self.assertEqual(run.call_count, 2)
+            self.assertIn('Paketych route sync', run.call_args_list[0].args[0])
+            command = run.call_args_list[1].args[0]
             self.assertEqual(command[0], 'schtasks.exe')
             self.assertIn('6', command)
-            self.assertIn('Paketych route sync', command)
+            self.assertIn('PackeTech route sync', command)
             self.assertIn('kwan.exe', command[-1])
+
+    def test_macos_launch_agent_runs_kwan_every_six_hours(self):
+        """LaunchAgent stores the absolute CLI path and six-hour interval."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            cli = root / 'PackeTech.app' / 'Contents' / 'MacOS' / 'kwan'
+            cli.parent.mkdir(parents=True)
+            cli.write_text('#!/bin/sh\n', encoding='utf-8')
+            agent = write_macos_launch_agent(cli, root / 'LaunchAgents')
+            payload = agent.read_text(encoding='utf-8')
+            self.assertIn(str(cli.resolve()), payload)
+            self.assertIn('<integer>21600</integer>', payload)
+            self.assertIn('ru.rodman.packetech.sync', payload)
+
+    def test_macos_launch_agent_bootstraps_current_gui_domain(self):
+        """macOS scheduling reloads the user agent without raising on bootout."""
+        with tempfile.TemporaryDirectory() as directory:
+            cli = Path(directory) / 'kwan'
+            cli.write_text('#!/bin/sh\n', encoding='utf-8')
+            with (
+                patch(
+                    'keenetic_router.core.scheduler.write_macos_launch_agent',
+                    return_value=Path(directory) / 'agent.plist',
+                ),
+                patch('keenetic_router.core.scheduler.os.getuid', return_value=501),
+                patch('keenetic_router.core.scheduler.subprocess.run') as run,
+            ):
+                result = enable_macos_launch_agent(cli)
+            self.assertTrue(result.enabled)
+            self.assertEqual(run.call_count, 2)
+            self.assertEqual(run.call_args_list[1].args[0][:3], ['launchctl', 'bootstrap', 'gui/501'])
 
 
 class FaviconTests(unittest.TestCase):

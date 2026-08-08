@@ -107,7 +107,7 @@ class RouteDesktop:
 
     def configure_page(self):
         """Apply the desktop theme and render the first-run connection screen."""
-        self.page.title = 'Пакетыч · сайты через VPN'
+        self.page.title = 'PackeTech · сайты через VPN'
         self.page.bgcolor = BG
         self.page.theme_mode = ft.ThemeMode.DARK
         self.page.padding = 0
@@ -256,7 +256,7 @@ class RouteDesktop:
                         fit=ft.BoxFit.CONTAIN,
                         filter_quality=ft.FilterQuality.NONE,
                     ),
-                    ft.Text('ПАКЕТЫЧ', color=ACID, size=13, weight=ft.FontWeight.BOLD),
+                    ft.Text('PACKETECH', color=ACID, size=13, weight=ft.FontWeight.BOLD),
                     ft.Text(
                         'Доставляет сайты\nчерез нужный VPN',
                         color=TEXT,
@@ -915,7 +915,7 @@ class RouteDesktop:
                         spacing=1,
                         controls=[
                             ft.Text(
-                                f'ПАКЕТЫЧ · {self.profile.host} · {transport}',
+                                f'PACKETECH · {self.profile.host} · {transport}',
                                 color=ACID,
                                 size=10,
                                 weight=ft.FontWeight.BOLD,

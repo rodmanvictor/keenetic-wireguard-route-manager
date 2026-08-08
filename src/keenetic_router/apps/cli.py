@@ -542,7 +542,7 @@ def cmd_tunnel_import(args):
 def main():
     """Parse command-line arguments and run one isolated user operation."""
     parser = argparse.ArgumentParser(
-        description='Пакетыч — выбранные сайты через WireGuard',
+        description='PackeTech — выбранные сайты через WireGuard',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog='''
 Примеры использования:

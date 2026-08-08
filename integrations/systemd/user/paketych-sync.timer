@@ -1,5 +1,5 @@
 [Unit]
-Description=Пакетыч: обновлять маршруты каждые 6 часов
+Description=PackeTech: обновлять маршруты каждые 6 часов
 
 [Timer]
 OnBootSec=10min

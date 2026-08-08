@@ -20,4 +20,4 @@ fi
 .venv-build/bin/python scripts/build-desktop.py
 .venv-build/bin/python scripts/package-linux.py
 
-echo "[OK] Built Пакетыч Linux packages in dist/release"
+echo "[OK] Built PackeTech Linux packages in dist/release"

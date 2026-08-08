@@ -1,48 +1,62 @@
-# Windows/Linux-сборка и публикация
+# Сборки Windows, Linux и macOS
 
 ## Публикуемые файлы
 
-Версия 0.3.0 публикуется для Windows 10/11 и Linux x86-64:
+Версия 0.3.0 публикуется для Windows 10/11, Linux и macOS:
 
-- `paketych_<version>_amd64.deb` — установочный пакет Debian, Ubuntu и Linux Mint;
-- `paketych-<version>-linux-x86_64.tar.gz` — переносимый Linux GUI и CLI;
+- `packetech_<version>_amd64.deb` — Debian, Ubuntu и Linux Mint;
+- `packetech-<version>-linux-x86_64.tar.gz` — переносимый Linux GUI и CLI;
 - `SHA256SUMS-linux.txt` — контрольные суммы Linux-файлов;
-- `paketych-<version>-windows-x86_64.zip` — переносимый Windows GUI и CLI;
-- `SHA256SUMS-windows.txt` — контрольная сумма Windows-архива.
-
-macOS исключена из release workflow до завершения тестирования Windows- и
-Linux-версий.
+- `packetech-<version>-windows-x86_64.zip` — переносимый Windows GUI и CLI;
+- `SHA256SUMS-windows.txt` — контрольная сумма Windows-архива;
+- `packetech-<version>-macos-arm64.dmg` — Apple Silicon;
+- `packetech-<version>-macos-x86_64.dmg` — Intel Mac;
+- отдельные SHA-256 для обеих macOS-архитектур.
 
 ## Linux-пакеты
 
 Debian-пакет устанавливает:
 
-- `/usr/lib/paketych/paketych` — автономный Flet GUI;
+- `/usr/lib/packetech/packetech` — автономный Flet GUI;
 - `/usr/bin/kwan` — автономный CLI;
-- `/usr/bin/paketych` — системный запуск GUI;
+- `/usr/bin/packetech` — системный запуск GUI;
+- `/usr/bin/paketych` — совместимый псевдоним старого имени;
 - desktop entry и адаптивные иконки 16–512 px;
 - пользовательский systemd-таймер `paketych-sync.timer`.
 
 Python пользователю не нужен. GUI и CLI собираются PyInstaller на Linux; Flet
-desktop runtime включается в GUI-файл. Системный Clang/GTK toolchain для этой
-схемы сборки не требуется.
+desktop runtime включается в GUI-файл.
 
 ## Windows-архив
 
-Windows-сборка создаётся на нативном `windows-latest`, а не кросс-компилируется
-из Linux. В архиве лежат:
+Windows-сборка создается на нативном `windows-latest`. В архиве лежат:
 
-- `Пакетыч.exe` — автономный оконный интерфейс;
+- `PackeTech.exe` — автономный оконный интерфейс;
 - `kwan.exe` — автономный CLI и исполнитель фоновой синхронизации;
 - `ПРОЧТИ МЕНЯ.txt` — короткий сценарий запуска.
 
-После первого успешного подключения приложение создаёт в Планировщике Windows
-задачу `Paketych route sync` с интервалом шесть часов. Папку нельзя переносить
-по одному файлу: задача ссылается на абсолютный путь к `kwan.exe`.
+После первого успешного подключения приложение создает задачу
+`PackeTech route sync` с интервалом шесть часов. Папку нельзя переносить по
+одному файлу: задача ссылается на абсолютный путь к `kwan.exe`.
 
-Windows-исполняемые файлы версии 0.3.0 не подписаны Authenticode. SmartScreen
-может предупредить о неизвестном издателе; это фиксируется в пользовательском
-README и не маскируется как ошибка сборки.
+Windows-файлы версии 0.3.0 не подписаны Authenticode. SmartScreen может
+предупредить о неизвестном издателе.
+
+## macOS DMG
+
+Две macOS-сборки создаются на нативных GitHub-hosted runners: ARM64 на
+`macos-15`, Intel x86-64 на `macos-15-intel`. PyInstaller формирует
+`PackeTech.app`, а `scripts/package-macos.py` добавляет внутрь standalone `kwan`,
+ставит ad-hoc подпись и собирает DMG через `hdiutil`.
+
+После первого подключения приложение регистрирует
+`~/Library/LaunchAgents/ru.rodman.packetech.sync.plist`. LaunchAgent запускает
+встроенный `kwan sync` при загрузке и затем каждые 21 600 секунд. Пользователь
+должен сначала перенести приложение в `/Applications`, иначе расписание будет
+ссылаться на временно смонтированный DMG.
+
+Apple Developer ID и нотаризация в версии 0.3.0 не используются. Первый запуск:
+контекстное меню приложения → «Открыть».
 
 ## Изменяемые данные
 
@@ -53,17 +67,17 @@ README и не маскируется как ошибка сборки.
 - Linux SQLite: `$XDG_DATA_HOME/keenetic-route-manager/route-sync.sqlite3` или
   `~/.local/share/keenetic-route-manager/route-sync.sqlite3`;
 - Windows-профиль: `%APPDATA%\KeeneticRouteManager\config.json`;
-- Windows SQLite: `%LOCALAPPDATA%\KeeneticRouteManager\route-sync.sqlite3`.
+- Windows SQLite: `%LOCALAPPDATA%\KeeneticRouteManager\route-sync.sqlite3`;
+- macOS профиль и SQLite: `~/Library/Application Support/KeeneticRouteManager/`.
+
+Старое внутреннее имя каталогов сохраняется намеренно: переименование продукта
+не должно обнулить настройки, пароль и базу доменов существующего пользователя.
 
 ## Локальная Linux-сборка
 
 ```bash
 ./scripts/build-linux.sh
 ```
-
-Скрипт создаёт виртуальное окружение при необходимости, собирает два
-исполняемых файла, формирует `.deb` и переносимый архив, затем записывает
-SHA-256.
 
 Для поэтапной диагностики:
 
@@ -73,16 +87,17 @@ SHA-256.
 .venv-build/bin/python scripts/package-linux.py
 ```
 
-Windows-архив собирается только на Windows после тех же двух PyInstaller-шагов:
+Windows-архив и macOS DMG собираются только на соответствующей ОС:
 
-```powershell
+```text
 python scripts/package-windows.py
+python scripts/package-macos.py
 ```
 
 ## GitHub Actions
 
 `.github/workflows/release.yml` запускается вручную или тегом `v*` на
-`ubuntu-latest` и `windows-latest`. Оба matrix-job выполняют offline-тесты и
-собирают нативные GUI/CLI через PyInstaller. Linux-job создаёт `.deb` и
-`.tar.gz`, Windows-job — `.zip`. Теговый запуск прикладывает артефакты обеих
-систем к одному GitHub Release.
+`ubuntu-latest`, `windows-latest`, `macos-15` и `macos-15-intel`. Все matrix-job
+выполняют offline-тесты и собирают нативные GUI/CLI через PyInstaller. Теговый
+запуск прикладывает Linux, Windows и обе macOS-архитектуры к одному GitHub
+Release.

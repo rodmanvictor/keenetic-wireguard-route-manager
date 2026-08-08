@@ -37,7 +37,7 @@ def _version() -> str:
 
 def _require_builds() -> tuple[Path, Path]:
     """Return desktop and CLI executables or raise a clear build error."""
-    desktop = DIST / 'desktop' / 'paketych'
+    desktop = DIST / 'desktop' / 'packetech'
     cli = DIST / 'cli' / 'kwan'
     missing = [str(path.relative_to(ROOT)) for path in (desktop, cli) if not path.is_file()]
     if missing:
@@ -49,44 +49,49 @@ def _desktop_entry() -> str:
     """Return the freedesktop launcher installed by the Debian package."""
     return '''[Desktop Entry]
 Type=Application
-Name=Пакетыч
+Name=PackeTech
 Comment=Выбранные сайты через WireGuard
-Exec=paketych
+Exec=packetech
 Icon=paketych
 Terminal=false
 Categories=Network;
 StartupNotify=true
-StartupWMClass=Пакетыч
+StartupWMClass=PackeTech
 '''
 
 
 def build_deb(desktop: Path, cli: Path, version: str) -> Path:
     """Build a root-owned Debian package and return its final path."""
-    staging = ROOT / 'build' / 'debian' / 'paketych'
+    staging = ROOT / 'build' / 'debian' / 'packetech'
     if staging.exists():
         shutil.rmtree(staging)
     control = staging / 'DEBIAN'
     control.mkdir(parents=True)
-    control_text = f'''Package: paketych
+    control_text = f'''Package: packetech
 Version: {version}
 Section: net
 Priority: optional
 Architecture: amd64
 Maintainer: Viktor Rodin
 Depends: libgtk-3-0 | libgtk-3-0t64, libsecret-1-0
+Conflicts: paketych
+Replaces: paketych
+Provides: paketych
 Installed-Size: {(desktop.stat().st_size + cli.stat().st_size) // 1024}
 Description: Выбранные сайты через WireGuard на Keenetic
- Пакетыч добавляет домены и IP-маршруты, импортирует WireGuard,
+ PackeTech добавляет домены и IP-маршруты, импортирует WireGuard,
  автоматически включает SSH через Telnet и обновляет DNS-маршруты.
 '''
     (control / 'control').write_text(control_text, encoding='utf-8')
 
-    _copy(desktop, staging / 'usr/lib/paketych/paketych', 0o755)
+    _copy(desktop, staging / 'usr/lib/packetech/packetech', 0o755)
     _copy(cli, staging / 'usr/bin/kwan', 0o755)
-    link = staging / 'usr/bin/paketych'
+    link = staging / 'usr/bin/packetech'
     link.parent.mkdir(parents=True, exist_ok=True)
-    link.symlink_to('../lib/paketych/paketych')
-    launcher = staging / 'usr/share/applications/paketych.desktop'
+    link.symlink_to('../lib/packetech/packetech')
+    compatibility_link = staging / 'usr/bin/paketych'
+    compatibility_link.symlink_to('packetech')
+    launcher = staging / 'usr/share/applications/packetech.desktop'
     launcher.parent.mkdir(parents=True, exist_ok=True)
     launcher.write_text(_desktop_entry(), encoding='utf-8')
     launcher.chmod(0o644)
@@ -101,14 +106,14 @@ Description: Выбранные сайты через WireGuard на Keenetic
             staging / 'usr/lib/systemd/user' / unit,
             0o644,
         )
-    _copy(ROOT / 'README.md', staging / 'usr/share/doc/paketych/README.md', 0o644)
-    _copy(ROOT / 'LICENSE', staging / 'usr/share/doc/paketych/copyright', 0o644)
+    _copy(ROOT / 'README.md', staging / 'usr/share/doc/packetech/README.md', 0o644)
+    _copy(ROOT / 'LICENSE', staging / 'usr/share/doc/packetech/copyright', 0o644)
     for directory in staging.rglob('*'):
         if directory.is_dir():
             directory.chmod(0o755)
 
     RELEASE.mkdir(parents=True, exist_ok=True)
-    output = RELEASE / f'paketych_{version}_amd64.deb'
+    output = RELEASE / f'packetech_{version}_amd64.deb'
     subprocess.run(
         ['dpkg-deb', '--root-owner-group', '--build', str(staging), str(output)],
         check=True,
@@ -118,24 +123,24 @@ Description: Выбранные сайты через WireGuard на Keenetic
 
 def build_portable(desktop: Path, cli: Path, version: str) -> Path:
     """Create a tar.gz with two runnable files and a short launch guide."""
-    staging = ROOT / 'build' / 'portable' / 'paketych'
+    staging = ROOT / 'build' / 'portable' / 'packetech'
     if staging.parent.exists():
         shutil.rmtree(staging.parent)
     staging.mkdir(parents=True)
-    _copy(desktop, staging / 'paketych', 0o755)
+    _copy(desktop, staging / 'packetech', 0o755)
     _copy(cli, staging / 'kwan', 0o755)
     (staging / 'README.txt').write_text(
-        'Пакетыч для Linux x86-64\n\n'
-        'GUI: дважды щёлкните paketych или запустите ./paketych\n'
+        'PackeTech для Linux x86-64\n\n'
+        'GUI: дважды щёлкните packetech или запустите ./packetech\n'
         'CLI: ./kwan --help\n\n'
         'Настройки: ~/.config/keenetic-route-manager/config.json\n'
         'База: ~/.local/share/keenetic-route-manager/route-sync.sqlite3\n',
         encoding='utf-8',
     )
     RELEASE.mkdir(parents=True, exist_ok=True)
-    output = RELEASE / f'paketych-{version}-linux-x86_64.tar.gz'
+    output = RELEASE / f'packetech-{version}-linux-x86_64.tar.gz'
     with tarfile.open(output, 'w:gz') as archive:
-        archive.add(staging, arcname='paketych')
+        archive.add(staging, arcname='packetech')
     return output
 
 

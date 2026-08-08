@@ -23,6 +23,10 @@ jobs:
             platform: linux
           - os: windows-latest
             platform: windows
+          - os: macos-15
+            platform: macos-arm64
+          - os: macos-15-intel
+            platform: macos-x86_64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -46,9 +50,12 @@ jobs:
       - name: Archive native Windows applications
         if: runner.os == 'Windows'
         run: python scripts/package-windows.py
+      - name: Archive native macOS application
+        if: runner.os == 'macOS'
+        run: python scripts/package-macos.py
       - uses: actions/upload-artifact@v4
         with:
-          name: paketych-${{ matrix.platform }}
+          name: packetech-${{ matrix.platform }}
           path: dist/release/*
           if-no-files-found: error
 

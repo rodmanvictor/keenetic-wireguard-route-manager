@@ -1,5 +1,5 @@
 [Unit]
-Description=Пакетыч: обновление доменных маршрутов Keenetic
+Description=PackeTech: обновление доменных маршрутов Keenetic
 Wants=network-online.target
 After=network-online.target
 

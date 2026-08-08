@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="assets/branding/paketych-mascot.png" width="280" alt="Пакетыч — 8-битный курьер интернет-пакетов">
+  <img src="assets/branding/paketych-mascot.png" width="280" alt="PackeTech — 8-битный курьер интернет-пакетов">
 </p>
 
-<h1 align="center">Пакетыч</h1>
+<h1 align="center">PackeTech</h1>
 
 <p align="center">
   <strong>Отправляю выбранные сайты через WireGuard. Остальной интернет не трогаю.</strong>
@@ -11,11 +11,13 @@
 <p align="center">
   <img alt="Linux x86-64" src="https://img.shields.io/badge/Linux-x86--64-B8F34A?style=flat-square&logo=linux&logoColor=111">
   <img alt="Windows 10/11 x86-64" src="https://img.shields.io/badge/Windows-10%20%2F%2011-B8F34A?style=flat-square&logo=windows&logoColor=111">
+  <img alt="macOS Intel/Apple Silicon" src="https://img.shields.io/badge/macOS-Intel%20%2F%20Apple%20Silicon-B8F34A?style=flat-square&logo=apple&logoColor=111">
   <img alt="Python 3.11+" src="https://img.shields.io/badge/Python-3.11%2B-B8F34A?style=flat-square&logo=python&logoColor=111">
   <img alt="License MIT" src="https://img.shields.io/badge/license-MIT-B8F34A?style=flat-square">
 </p>
 
-Я — **Пакетыч**, усатый курьер из эпохи картриджей. Пока обычный VPN тащит
+Я — **PackeTech**. По-русски все так же Пакетыч: усатый курьер из эпохи
+картриджей. Пока обычный VPN тащит
 через себя весь дом, я работаю точечно: ChatGPT, YouTube, Discord или другой
 выбранный сайт отправляю через WireGuard, а банки, магазины и локальные сервисы
 оставляю на домашнем провайдере.
@@ -24,10 +26,9 @@
 туннелей, обновляю DNS-маршруты каждые **6 часов** и помню, какой сайт откуда
 появился.
 
-> **Текущий уровень:** публичная beta для Windows 10/11 и Linux x86-64.
-> macOS будет следующим уровнем после обкатки этих сборок.
+> **Текущий уровень:** публичная beta для Windows 10/11, macOS и Linux x86-64.
 
-![Главный экран Пакетыча](docs/images/paketych-domains.png)
+![Главный экран PackeTech](docs/images/paketych-domains.png)
 
 ## Миссия без сетевой магии
 
@@ -67,10 +68,10 @@ Keenetic.
 
 ### Windows 10 и 11
 
-1. Откройте [последний выпуск](https://github.com/rodmanvictor/paketych/releases/latest).
-2. Скачайте `paketych-0.3.0-windows-x86_64.zip`.
+1. Откройте [последний выпуск](https://github.com/rodmanvictor/packetech/releases/latest).
+2. Скачайте `packetech-0.3.0-windows-x86_64.zip`.
 3. Нажмите на архив правой кнопкой и выберите **«Извлечь всё»**.
-4. Откройте полученную папку и запустите **«Пакетыч.exe»**.
+4. Откройте полученную папку и запустите **`PackeTech.exe`**.
 
 Python, Git и командная строка не нужны. Не запускайте программу прямо внутри
 ZIP и не переносите один EXE отдельно: лежащий рядом `kwan.exe` обновляет
@@ -83,21 +84,33 @@ ZIP и не переносите один EXE отдельно: лежащий �
 
 ### Ubuntu, Debian и Linux Mint
 
-1. Откройте [последний выпуск](https://github.com/rodmanvictor/paketych/releases/latest).
-2. Скачайте `paketych_0.3.0_amd64.deb`.
+1. Откройте [последний выпуск](https://github.com/rodmanvictor/packetech/releases/latest).
+2. Скачайте `packetech_0.3.0_amd64.deb`.
 3. Откройте файл двойным щелчком и нажмите «Установить».
-4. Запустите **Пакетыч** из меню приложений.
+4. Запустите **PackeTech** из меню приложений.
 
 Если двойной щелчок не сработал:
 
 ```bash
-sudo apt install ./paketych_0.3.0_amd64.deb
+sudo apt install ./packetech_0.3.0_amd64.deb
 ```
 
 ### Другой Linux x86-64
 
-Скачайте `paketych-0.3.0-linux-x86_64.tar.gz`, распакуйте архив и запустите
-файл `paketych`. Python и Flet устанавливать не нужно — всё уже внутри.
+Скачайте `packetech-0.3.0-linux-x86_64.tar.gz`, распакуйте архив и запустите
+файл `packetech`. Python и Flet устанавливать не нужно — всё уже внутри.
+
+### macOS: Apple Silicon и Intel
+
+1. Откройте [последний выпуск](https://github.com/rodmanvictor/packetech/releases/latest).
+2. Для Mac на M1/M2/M3/M4/M5 скачайте `packetech-0.3.0-macos-arm64.dmg`.
+3. Для Mac на Intel скачайте `packetech-0.3.0-macos-x86_64.dmg`.
+4. Откройте DMG и перетащите `PackeTech.app` в `Applications`.
+5. В `Applications` нажмите по приложению правой кнопкой и выберите **«Открыть»**.
+
+Сборка подписана технической ad-hoc подписью, но пока не нотарифицирована Apple.
+Поэтому обычный двойной щелчок при первом запуске может быть заблокирован.
+Python, Homebrew и Терминал для работы приложения не нужны.
 
 ## Уровень 2. Подключить роутер
 
@@ -152,26 +165,39 @@ https://chatgpt.com/share/example?ref=home
 Закрытый и preshared-ключи передаю на роутер только по SSH. В журнал и SQLite
 они не попадают.
 
-## Chrome: кнопка быстрого прохода
+## Chrome: добавить открытый сайт одной кнопкой
 
-В репозитории есть расширение **«Пакетыч · открыть сайт»**. Откройте сайт,
+В репозитории есть расширение **«PackeTech · открыть сайт»**. Откройте сайт,
 нажмите значок расширения — домен попадёт в общую базу с источником `Chrome` и
 останется в шестичасовом обновлении.
 
-Папка расширения:
+Сейчас связка с Chrome поддерживается в Linux. Само приложение на Windows и
+macOS работает независимо от расширения.
+
+### Установка расширения в Linux
+
+1. Скачайте и распакуйте [исходный код последнего выпуска](https://github.com/rodmanvictor/packetech/releases/latest).
+2. Откройте в Chrome адрес `chrome://extensions`.
+3. Включите справа сверху **«Режим разработчика»**.
+4. Нажмите **«Загрузить распакованное расширение»**.
+5. Выберите в распакованном проекте папку:
 
 ```text
 integrations/chrome/extension
 ```
 
-После загрузки распакованного расширения зарегистрируйте native host:
+6. На карточке расширения скопируйте его 32-символьный ID.
+7. В Терминале перейдите в распакованный проект и выполните:
 
 ```bash
-./scripts/install-native-host-linux.sh EXTENSION_ID .venv-build/bin/python
+python3 -m venv .venv-chrome
+.venv-chrome/bin/python -m pip install -e .
+./scripts/install-native-host-linux.sh EXTENSION_ID .venv-chrome/bin/python
 ```
 
-Native host для Chrome пока устанавливается только в Linux. Само приложение
-для Windows работает независимо от расширения.
+Вместо `EXTENSION_ID` вставьте скопированный ID без кавычек. После этого вернитесь
+на `chrome://extensions`, включите переключатель расширения и закрепите его
+значок на панели Chrome.
 
 Важно: круглая стрелка **Reload** перечитывает файлы, но не включает расширение
 со статусом Off. Его переключатель включается отдельно.
@@ -241,7 +267,7 @@ kwan --help
 ### Проверить автообновление
 
 На Windows откройте **Планировщик заданий** и найдите задачу
-`Paketych route sync`. На Linux:
+`PackeTech route sync`. На Linux:
 
 ```bash
 systemctl --user status paketych-sync.timer
@@ -249,8 +275,10 @@ systemctl --user status paketych-sync.timer
 
 ## Ограничения версии 0.3.0
 
-- готовые сборки публикуются для Windows 10/11 и Linux x86-64;
+- готовые сборки публикуются для Windows 10/11, Linux x86-64, macOS Apple Silicon и Intel;
 - Windows-сборка пока не имеет цифровой подписи, поэтому возможен SmartScreen;
+- macOS-сборки пока не нотарифицированы Apple, поэтому первый запуск делается через «Открыть»;
+- Chrome-расширение пока подключается к локальному помощнику только в Linux;
 - маршрутизация работает с IPv4;
 - DNS и MTU из WireGuard-конфига не применяются автоматически;
 - один профиль приложения управляет одним роутером;
@@ -259,11 +287,11 @@ systemctl --user status paketych-sync.timer
 
 ## Удалить игру, сохранить прогресс
 
-В Windows удалите распакованную папку и задачу `Paketych route sync` в
+В Windows удалите распакованную папку и задачу `PackeTech route sync` в
 Планировщике заданий. В Linux:
 
 ```bash
-sudo apt remove paketych
+sudo apt remove packetech
 ```
 
 Настройки и SQLite останутся на месте. Чтобы удалить их без возможности
@@ -276,8 +304,8 @@ rm -r ~/.config/keenetic-route-manager ~/.local/share/keenetic-route-manager
 ## Запустить из исходников
 
 ```bash
-git clone https://github.com/rodmanvictor/paketych.git
-cd paketych
+git clone https://github.com/rodmanvictor/packetech.git
+cd packetech
 python3 -m venv .venv-build
 .venv-build/bin/python -m pip install -r requirements-dev.txt -e .
 npm run test:python
@@ -287,10 +315,11 @@ npm run docs:check
 
 Готовые файлы появятся в `dist/release/`:
 
-- `paketych_0.3.0_amd64.deb`;
-- `paketych-0.3.0-linux-x86_64.tar.gz`;
-- `paketych-0.3.0-windows-x86_64.zip` — собирается на Windows в GitHub Actions;
-- `SHA256SUMS-linux.txt` и `SHA256SUMS-windows.txt`.
+- `packetech_0.3.0_amd64.deb`;
+- `packetech-0.3.0-linux-x86_64.tar.gz`;
+- `packetech-0.3.0-windows-x86_64.zip`;
+- `packetech-0.3.0-macos-arm64.dmg` и `packetech-0.3.0-macos-x86_64.dmg`;
+- контрольные суммы SHA-256 для каждой системы.
 
 Архитектура и эксплуатационные заметки: [docs/README.md](docs/README.md).
 

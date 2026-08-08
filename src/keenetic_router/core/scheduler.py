@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import os
 from pathlib import Path
+import plistlib
 import shutil
 import subprocess
 import sys
@@ -65,7 +66,7 @@ def write_user_units(cli_path: Path, directory: Path | None = None) -> tuple[Pat
     """
     resolved = cli_path.expanduser().resolve()
     if not resolved.is_file():
-        raise ValueError(f'Не найден CLI Пакетыча: {resolved}')
+        raise ValueError(f'Не найден CLI PackeTech: {resolved}')
     if '"' in str(resolved):
         raise ValueError('Путь к CLI содержит неподдерживаемую кавычку')
     target = directory or user_systemd_directory()
@@ -74,7 +75,7 @@ def write_user_units(cli_path: Path, directory: Path | None = None) -> tuple[Pat
     timer = target / 'paketych-sync.timer'
     service.write_text(
         '[Unit]\n'
-        'Description=Пакетыч: обновление доменных маршрутов Keenetic\n'
+        'Description=PackeTech: обновление доменных маршрутов Keenetic\n'
         'Wants=network-online.target\n'
         'After=network-online.target\n\n'
         '[Service]\n'
@@ -84,7 +85,7 @@ def write_user_units(cli_path: Path, directory: Path | None = None) -> tuple[Pat
     )
     timer.write_text(
         '[Unit]\n'
-        'Description=Пакетыч: обновлять маршруты каждые 6 часов\n\n'
+        'Description=PackeTech: обновлять маршруты каждые 6 часов\n\n'
         '[Timer]\n'
         'OnBootSec=10min\n'
         'OnUnitActiveSec=6h\n'
@@ -109,13 +110,27 @@ def enable_windows_task(cli_path: Path) -> TimerSetupResult:
         A non-raising result with the Task Scheduler outcome.
 
     Side effects:
-        Replaces the current user's ``Paketych route sync`` scheduled task.
+        Removes the legacy ``Paketych route sync`` task and replaces the
+        current user's ``PackeTech route sync`` scheduled task.
     """
     resolved = cli_path.expanduser().resolve()
     if not resolved.is_file():
         return TimerSetupResult(False, f'CLI для фонового обновления не найден: {resolved}')
     task_command = subprocess.list2cmdline([str(resolved), 'sync'])
     try:
+        subprocess.run(
+            [
+                'schtasks.exe',
+                '/Delete',
+                '/F',
+                '/TN',
+                'Paketych route sync',
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=20,
+        )
         subprocess.run(
             [
                 'schtasks.exe',
@@ -126,7 +141,7 @@ def enable_windows_task(cli_path: Path) -> TimerSetupResult:
                 '/MO',
                 '6',
                 '/TN',
-                'Paketych route sync',
+                'PackeTech route sync',
                 '/TR',
                 task_command,
             ],
@@ -138,6 +153,78 @@ def enable_windows_task(cli_path: Path) -> TimerSetupResult:
     except (OSError, subprocess.SubprocessError) as error:
         return TimerSetupResult(False, f'Автообновление не включено: {error}')
     return TimerSetupResult(True, 'Автообновление включено через Планировщик Windows')
+
+
+def macos_launch_agents_directory() -> Path:
+    """Return the current user's native macOS LaunchAgents directory."""
+    return Path.home() / 'Library' / 'LaunchAgents'
+
+
+def write_macos_launch_agent(cli_path: Path, directory: Path | None = None) -> Path:
+    """Write a six-hour macOS LaunchAgent for the standalone synchronizer.
+
+    Args:
+        cli_path: Existing native ``kwan`` executable embedded in the app.
+        directory: Optional test or custom LaunchAgents directory.
+
+    Returns:
+        Path to the written property-list file.
+
+    Raises:
+        ValueError: If the CLI executable does not exist.
+
+    Side effects:
+        Creates or replaces ``ru.rodman.packetech.sync.plist``.
+    """
+    resolved = cli_path.expanduser().resolve()
+    if not resolved.is_file():
+        raise ValueError(f'Не найден CLI PackeTech: {resolved}')
+    target = directory or macos_launch_agents_directory()
+    target.mkdir(parents=True, exist_ok=True)
+    agent = target / 'ru.rodman.packetech.sync.plist'
+    payload = {
+        'Label': 'ru.rodman.packetech.sync',
+        'ProgramArguments': [str(resolved), 'sync'],
+        'RunAtLoad': True,
+        'StartInterval': 6 * 60 * 60,
+    }
+    agent.write_bytes(plistlib.dumps(payload, sort_keys=True))
+    agent.chmod(0o644)
+    return agent
+
+
+def enable_macos_launch_agent(cli_path: Path) -> TimerSetupResult:
+    """Install and bootstrap the current user's macOS LaunchAgent.
+
+    Args:
+        cli_path: Existing native ``kwan`` executable embedded in PackeTech.
+
+    Returns:
+        A non-raising result with the ``launchctl`` outcome.
+
+    Side effects:
+        Replaces and reloads the user's PackeTech LaunchAgent.
+    """
+    try:
+        agent = write_macos_launch_agent(cli_path)
+        domain = f'gui/{os.getuid()}'
+        subprocess.run(
+            ['launchctl', 'bootout', domain, str(agent)],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        subprocess.run(
+            ['launchctl', 'bootstrap', domain, str(agent)],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
+        return TimerSetupResult(False, f'Автообновление не включено: {error}')
+    return TimerSetupResult(True, 'Автообновление включено через LaunchAgent macOS')
 
 
 def enable_background_sync() -> TimerSetupResult:
@@ -152,6 +239,8 @@ def enable_background_sync() -> TimerSetupResult:
         return TimerSetupResult(False, 'CLI для фонового обновления не найден')
     if os.name == 'nt':
         return enable_windows_task(cli)
+    if sys.platform == 'darwin':
+        return enable_macos_launch_agent(cli)
     if not sys.platform.startswith('linux'):
         return TimerSetupResult(False, 'Автообновление пока недоступно в этой системе')
     try:

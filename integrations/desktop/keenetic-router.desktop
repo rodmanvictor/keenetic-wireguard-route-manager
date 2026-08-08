@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
-Name=Пакетыч
-Name[ru]=Пакетыч
+Name=PackeTech
+Name[ru]=PackeTech
 Comment=Manage domains routed through WireGuard
 Comment[ru]=Домены и маршруты через WireGuard
 Exec=keenetic-desktop
@@ -9,4 +9,4 @@ Icon=paketych
 Terminal=false
 Categories=Network;
 StartupNotify=true
-StartupWMClass=Пакетыч
+StartupWMClass=PackeTech

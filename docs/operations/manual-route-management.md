@@ -80,7 +80,7 @@ Favicon загружается best-effort через Google S2 только п�
 keenetic-desktop
 ```
 
-Установочный `.deb` добавляет ярлык `Пакетыч` в системное меню приложений. Файл
+Установочный `.deb` добавляет ярлык `PackeTech` в системное меню приложений. Файл
 `integrations/desktop/keenetic-router.desktop` остаётся совместимым ярлыком для
 запуска из исходников.
 
@@ -94,13 +94,30 @@ Linux-сборка создаётся через PyInstaller и упаковыв
 
 - распакованное расширение: `integrations/chrome/extension/`;
 - native host: `integrations/chrome/native_host/host.py`;
-- установка native host: `./scripts/install-native-host-linux.sh <EXTENSION_ID> .venv-build/bin/python`.
+- установка native host: `./scripts/install-native-host-linux.sh <EXTENSION_ID> .venv-chrome/bin/python`.
+
+Пользовательская установка в Linux:
+
+1. Скачать и распаковать исходный код последнего GitHub Release.
+2. Открыть `chrome://extensions` и включить режим разработчика.
+3. Нажать «Загрузить распакованное расширение» и выбрать
+   `integrations/chrome/extension/`.
+4. Скопировать 32-символьный ID с карточки расширения.
+5. В корне распакованного проекта выполнить:
+
+```bash
+python3 -m venv .venv-chrome
+.venv-chrome/bin/python -m pip install -e .
+./scripts/install-native-host-linux.sh <ID_ИЗ_CHROME> .venv-chrome/bin/python
+```
+
+6. Вернуться в Chrome, включить переключатель расширения и закрепить его значок.
 
 Расширение намеренно минимальное: оно получает только домен активной вкладки, отправляет его native host с источником `chrome`, добавляет текущие DNS-маршруты через `wg1` и перезагружает вкладку. Фоновый перехват запросов, доступ ко всем URL и сбор вспомогательных CDN-доменов удалены.
 
 Native host применяет изменение через общий сервис синхронизации. Домен остаётся в шестичасовом автообновлении и виден в desktop-приложении с меткой Chrome.
 
-После изменения файлов распакованного расширения откройте `chrome://extensions`, включите режим разработчика и нажмите «Перезагрузить» на карточке `Keenetic · открыть сайт`. Chrome не перезагружает изменённый Manifest V3 автоматически.
+После изменения файлов распакованного расширения откройте `chrome://extensions`, включите режим разработчика и нажмите «Перезагрузить» на карточке `PackeTech · открыть сайт`. Chrome не перезагружает измененный Manifest V3 автоматически.
 
 Если на карточке написано `Off`, сначала включите переключатель справа. Кнопка с
 круглой стрелкой только перечитывает файлы уже включённого расширения и не
@@ -108,7 +125,7 @@ Native host применяет изменение через общий серв
 папки проверьте её ID и заново привяжите native host именно к нему:
 
 ```bash
-./scripts/install-native-host-linux.sh <ID_ИЗ_CHROME> .venv-build/bin/python
+./scripts/install-native-host-linux.sh <ID_ИЗ_CHROME> .venv-chrome/bin/python
 ```
 
 ID в `allowed_origins` файла

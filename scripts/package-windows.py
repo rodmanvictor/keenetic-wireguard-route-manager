@@ -31,7 +31,7 @@ def _require_builds() -> tuple[Path, Path]:
     Raises:
         FileNotFoundError: If PyInstaller has not produced either executable.
     """
-    desktop = DIST / 'desktop' / 'paketych.exe'
+    desktop = DIST / 'desktop' / 'PackeTech.exe'
     cli = DIST / 'cli' / 'kwan.exe'
     missing = [str(path.relative_to(ROOT)) for path in (desktop, cli) if not path.is_file()]
     if missing:
@@ -50,15 +50,15 @@ def build_archive(desktop: Path, cli: Path, version: str) -> Path:
     Side effects:
         Replaces the Windows staging directory and release archive.
     """
-    staging = ROOT / 'build' / 'portable-windows' / 'Пакетыч'
+    staging = ROOT / 'build' / 'portable-windows' / 'PackeTech'
     if staging.parent.exists():
         shutil.rmtree(staging.parent)
     staging.mkdir(parents=True)
-    shutil.copy2(desktop, staging / 'Пакетыч.exe')
+    shutil.copy2(desktop, staging / 'PackeTech.exe')
     shutil.copy2(cli, staging / 'kwan.exe')
     (staging / 'ПРОЧТИ МЕНЯ.txt').write_text(
-        'ПАКЕТЫЧ ДЛЯ WINDOWS 10 И 11\n\n'
-        '1. Запустите «Пакетыч.exe».\n'
+        'PACKETECH ДЛЯ WINDOWS 10 И 11\n\n'
+        '1. Запустите «PackeTech.exe».\n'
         '2. Если Windows покажет SmartScreen, нажмите «Подробнее» → «Выполнить в любом случае».\n'
         '3. Введите адрес, логин и пароль администратора Keenetic.\n\n'
         'Не переносите один EXE отдельно: kwan.exe нужен для обновления маршрутов каждые 6 часов.\n'
@@ -67,7 +67,7 @@ def build_archive(desktop: Path, cli: Path, version: str) -> Path:
         encoding='utf-8-sig',
     )
     RELEASE.mkdir(parents=True, exist_ok=True)
-    base = RELEASE / f'paketych-{version}-windows-x86_64'
+    base = RELEASE / f'packetech-{version}-windows-x86_64'
     archive = Path(shutil.make_archive(str(base), 'zip', staging.parent, staging.name))
     return archive
 
