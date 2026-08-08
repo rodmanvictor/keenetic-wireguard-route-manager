@@ -395,7 +395,11 @@ class SchedulerTests(unittest.TestCase):
                     'keenetic_router.core.scheduler.write_macos_launch_agent',
                     return_value=Path(directory) / 'agent.plist',
                 ),
-                patch('keenetic_router.core.scheduler.os.getuid', return_value=501),
+                patch(
+                    'keenetic_router.core.scheduler.os.getuid',
+                    return_value=501,
+                    create=True,
+                ),
                 patch('keenetic_router.core.scheduler.subprocess.run') as run,
             ):
                 result = enable_macos_launch_agent(cli)
