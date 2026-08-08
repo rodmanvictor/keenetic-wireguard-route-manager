@@ -15,7 +15,15 @@ jobs:
       PYTHONUTF8: "1"
       PYTHONIOENCODING: utf-8
       FLET_CLI_NO_RICH_OUTPUT: "1"
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+          - os: windows-latest
+            platform: windows
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -33,14 +41,15 @@ jobs:
       - name: Build desktop application
         run: python scripts/build-desktop.py
       - name: Archive native applications
+        if: runner.os == 'Linux'
         run: python scripts/package-linux.py
+      - name: Archive native Windows applications
+        if: runner.os == 'Windows'
+        run: python scripts/package-windows.py
       - uses: actions/upload-artifact@v4
         with:
-          name: paketych-linux
-          path: |
-            dist/release/*.deb
-            dist/release/*.tar.gz
-            dist/release/SHA256SUMS
+          name: paketych-${{ matrix.platform }}
+          path: dist/release/*
           if-no-files-found: error
 
   release:

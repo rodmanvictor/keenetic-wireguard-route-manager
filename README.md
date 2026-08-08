@@ -10,6 +10,7 @@
 
 <p align="center">
   <img alt="Linux x86-64" src="https://img.shields.io/badge/Linux-x86--64-B8F34A?style=flat-square&logo=linux&logoColor=111">
+  <img alt="Windows 10/11 x86-64" src="https://img.shields.io/badge/Windows-10%20%2F%2011-B8F34A?style=flat-square&logo=windows&logoColor=111">
   <img alt="Python 3.11+" src="https://img.shields.io/badge/Python-3.11%2B-B8F34A?style=flat-square&logo=python&logoColor=111">
   <img alt="License MIT" src="https://img.shields.io/badge/license-MIT-B8F34A?style=flat-square">
 </p>
@@ -23,8 +24,8 @@
 туннелей, обновляю DNS-маршруты каждые **6 часов** и помню, какой сайт откуда
 появился.
 
-> **Текущий уровень:** публичная beta для Linux x86-64. Windows и macOS будут
-> следующими уровнями после обкатки Linux-сборки.
+> **Текущий уровень:** публичная beta для Windows 10/11 и Linux x86-64.
+> macOS будет следующим уровнем после обкатки этих сборок.
 
 ![Главный экран Пакетыча](docs/images/paketych-domains.png)
 
@@ -61,8 +62,24 @@ Keenetic.
 
 - Keenetic с KeeneticOS;
 - логин и пароль администратора роутера;
-- 64-битный Linux: Ubuntu, Debian, Linux Mint или совместимая система;
+- Windows 10/11 или 64-битный Linux;
 - WireGuard-конфиг, QR-код или уже настроенный туннель.
+
+### Windows 10 и 11
+
+1. Откройте [последний выпуск](https://github.com/rodmanvictor/keenetic-wireguard-route-manager/releases/latest).
+2. Скачайте `paketych-0.3.0-windows-x86_64.zip`.
+3. Нажмите на архив правой кнопкой и выберите **«Извлечь всё»**.
+4. Откройте полученную папку и запустите **«Пакетыч.exe»**.
+
+Python, Git и командная строка не нужны. Не запускайте программу прямо внутри
+ZIP и не переносите один EXE отдельно: лежащий рядом `kwan.exe` обновляет
+маршруты каждые 6 часов.
+
+Сборка пока не подписана платным сертификатом. Если SmartScreen покажет синее
+окно «Система Windows защитила ваш компьютер», нажмите **«Подробнее»**, затем
+**«Выполнить в любом случае»**. Проверить скачанный архив можно по файлу
+`SHA256SUMS-windows.txt` из того же выпуска.
 
 ### Ubuntu, Debian и Linux Mint
 
@@ -153,12 +170,16 @@ integrations/chrome/extension
 ./scripts/install-native-host-linux.sh EXTENSION_ID .venv-build/bin/python
 ```
 
+Native host для Chrome пока устанавливается только в Linux. Само приложение
+для Windows работает независимо от расширения.
+
 Важно: круглая стрелка **Reload** перечитывает файлы, но не включает расширение
 со статусом Off. Его переключатель включается отдельно.
 
 ## Командная строка для тех, кто любит чёрный экран
 
-В `.deb` лежит самостоятельная команда `kwan`:
+В `.deb` лежит самостоятельная команда `kwan`, а в Windows-архиве —
+`kwan.exe`:
 
 ```bash
 kwan setup
@@ -176,17 +197,24 @@ kwan --help
 
 ## Где лежат пароль и база
 
-Профиль роутера хранится здесь:
+В Windows профиль роутера хранится здесь:
+
+```text
+%APPDATA%\KeeneticRouteManager\config.json
+```
+
+В Linux:
 
 ```text
 ~/.config/keenetic-route-manager/config.json
 ```
 
 В Linux файл получает права `600`. Пароль хранится без шифрования: пользователь
-с доступом к вашей учётной записи Linux сможет его прочитать. Не отправляйте
-этот JSON другим людям и не добавляйте его в Git.
+с доступом к вашей учётной записи Windows или Linux сможет его прочитать. Не
+отправляйте этот JSON другим людям и не добавляйте его в Git.
 
-Домены, IP, источники и история обновлений лежат здесь:
+В Windows домены, IP, источники и история обновлений лежат в
+`%LOCALAPPDATA%\KeeneticRouteManager\route-sync.sqlite3`. В Linux:
 
 ```text
 ~/.local/share/keenetic-route-manager/route-sync.sqlite3
@@ -212,13 +240,17 @@ kwan --help
 
 ### Проверить автообновление
 
+На Windows откройте **Планировщик заданий** и найдите задачу
+`Paketych route sync`. На Linux:
+
 ```bash
 systemctl --user status paketych-sync.timer
 ```
 
 ## Ограничения версии 0.3.0
 
-- готовая сборка публикуется только для Linux x86-64;
+- готовые сборки публикуются для Windows 10/11 и Linux x86-64;
+- Windows-сборка пока не имеет цифровой подписи, поэтому возможен SmartScreen;
 - маршрутизация работает с IPv4;
 - DNS и MTU из WireGuard-конфига не применяются автоматически;
 - один профиль приложения управляет одним роутером;
@@ -226,6 +258,9 @@ systemctl --user status paketych-sync.timer
 - favicon загружаются через внешний сервис; без него остаётся буквенная иконка.
 
 ## Удалить игру, сохранить прогресс
+
+В Windows удалите распакованную папку и задачу `Paketych route sync` в
+Планировщике заданий. В Linux:
 
 ```bash
 sudo apt remove paketych
@@ -254,7 +289,8 @@ npm run docs:check
 
 - `paketych_0.3.0_amd64.deb`;
 - `paketych-0.3.0-linux-x86_64.tar.gz`;
-- `SHA256SUMS`.
+- `paketych-0.3.0-windows-x86_64.zip` — собирается на Windows в GitHub Actions;
+- `SHA256SUMS-linux.txt` и `SHA256SUMS-windows.txt`.
 
 Архитектура и эксплуатационные заметки: [docs/README.md](docs/README.md).
 

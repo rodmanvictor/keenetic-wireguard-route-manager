@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the standalone Linux ``kwan`` command used by release packages."""
+"""Build the current platform's standalone ``kwan`` release command."""
 
 from pathlib import Path
 import subprocess

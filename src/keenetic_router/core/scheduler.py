@@ -1,4 +1,4 @@
-"""Linux user-timer setup for six-hour route synchronization."""
+"""Platform-native setup for six-hour route synchronization."""
 
 from __future__ import annotations
 
@@ -12,10 +12,10 @@ import sys
 
 @dataclass(frozen=True)
 class TimerSetupResult:
-    """Outcome of one best-effort Linux user-timer setup.
+    """Outcome of one best-effort background synchronization setup.
 
     Attributes:
-        enabled: Whether ``systemctl --user`` confirmed the timer activation.
+        enabled: Whether the native operating-system scheduler confirmed setup.
         detail: Short user-facing explanation without credentials.
     """
 
@@ -38,7 +38,8 @@ def find_kwan_executable() -> Path | None:
     installed = shutil.which('kwan')
     if installed:
         return Path(installed)
-    sibling = Path(sys.executable).resolve().with_name('kwan')
+    sibling_name = 'kwan.exe' if os.name == 'nt' else 'kwan'
+    sibling = Path(sys.executable).resolve().with_name(sibling_name)
     if sibling.is_file():
         return sibling
     project = Path(__file__).resolve().parents[3]
@@ -98,18 +99,61 @@ def write_user_units(cli_path: Path, directory: Path | None = None) -> tuple[Pat
     return service, timer
 
 
-def enable_user_timer() -> TimerSetupResult:
-    """Install and enable six-hour synchronization on Linux when supported.
+def enable_windows_task(cli_path: Path) -> TimerSetupResult:
+    """Create the current user's six-hour Windows Scheduled Task.
+
+    Args:
+        cli_path: Existing standalone ``kwan.exe`` executable.
 
     Returns:
-        A non-raising result.  Desktop onboarding remains usable on systems
-        without systemd or without a discoverable standalone CLI.
+        A non-raising result with the Task Scheduler outcome.
+
+    Side effects:
+        Replaces the current user's ``Paketych route sync`` scheduled task.
     """
-    if not sys.platform.startswith('linux'):
-        return TimerSetupResult(False, 'Автообновление доступно только в Linux')
+    resolved = cli_path.expanduser().resolve()
+    if not resolved.is_file():
+        return TimerSetupResult(False, f'CLI для фонового обновления не найден: {resolved}')
+    task_command = subprocess.list2cmdline([str(resolved), 'sync'])
+    try:
+        subprocess.run(
+            [
+                'schtasks.exe',
+                '/Create',
+                '/F',
+                '/SC',
+                'HOURLY',
+                '/MO',
+                '6',
+                '/TN',
+                'Paketych route sync',
+                '/TR',
+                task_command,
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=20,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        return TimerSetupResult(False, f'Автообновление не включено: {error}')
+    return TimerSetupResult(True, 'Автообновление включено через Планировщик Windows')
+
+
+def enable_background_sync() -> TimerSetupResult:
+    """Install six-hour synchronization using the current operating system.
+
+    Returns:
+        A non-raising result. Desktop onboarding remains usable without a
+        supported scheduler or without a discoverable standalone CLI.
+    """
     cli = find_kwan_executable()
     if cli is None:
         return TimerSetupResult(False, 'CLI для фонового обновления не найден')
+    if os.name == 'nt':
+        return enable_windows_task(cli)
+    if not sys.platform.startswith('linux'):
+        return TimerSetupResult(False, 'Автообновление пока недоступно в этой системе')
     try:
         write_user_units(cli)
         subprocess.run(
@@ -129,3 +173,8 @@ def enable_user_timer() -> TimerSetupResult:
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         return TimerSetupResult(False, f'Автообновление не включено: {error}')
     return TimerSetupResult(True, 'Автообновление включено: каждые 6 часов')
+
+
+def enable_user_timer() -> TimerSetupResult:
+    """Return the cross-platform setup result under the legacy public name."""
+    return enable_background_sync()

@@ -20,7 +20,7 @@ from keenetic_router.core.onboarding import (
 )
 from keenetic_router.core.profiles import RouterProfile, load_profile, save_profile
 from keenetic_router.core.router import clear_runtime_connection, create_router_client
-from keenetic_router.core.scheduler import enable_user_timer
+from keenetic_router.core.scheduler import enable_background_sync
 from keenetic_router.core.wireguard import (
     delete_wireguard_tunnel,
     import_wireguard_profile,
@@ -218,7 +218,7 @@ class RouteDesktop:
                     inventory_note = f'Подключено, но маршруты не импортированы: {exception}'
                 if inventory_note:
                     self.initial_status = inventory_note
-                timer = await asyncio.to_thread(enable_user_timer)
+                timer = await asyncio.to_thread(enable_background_sync)
                 if timer.enabled:
                     self.initial_status = f'{self.initial_status} · автообновление каждые 6 ч'
             except Exception as exception:

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Build the Linux desktop application as one self-contained executable.
+"""Build the current platform's desktop app as one executable.
 
 PyInstaller bundles the Python application, Flet desktop runtime, and packaged
-brand assets.  Unlike ``flet build linux``, this path does not require a local
-Clang/GTK development toolchain.
+brand assets. This path produces ``paketych`` on Linux and ``paketych.exe`` on
+Windows without requiring a separately installed Python runtime.
 """
 
 from pathlib import Path
@@ -12,7 +12,7 @@ import sys
 
 
 def main() -> None:
-    """Run PyInstaller with deterministic Linux desktop output paths."""
+    """Run PyInstaller with deterministic current-platform output paths."""
     root = Path(__file__).resolve().parents[1]
     separator = ';' if sys.platform == 'win32' else ':'
     command = [

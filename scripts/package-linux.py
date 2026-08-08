@@ -141,7 +141,7 @@ def build_portable(desktop: Path, cli: Path, version: str) -> Path:
 
 def write_checksums(paths: list[Path]) -> Path:
     """Write SHA-256 checksums for release verification."""
-    output = RELEASE / 'SHA256SUMS'
+    output = RELEASE / 'SHA256SUMS-linux.txt'
     lines = []
     for path in paths:
         digest = hashlib.sha256(path.read_bytes()).hexdigest()

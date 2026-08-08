@@ -2,4 +2,4 @@
 
 - [Обзор](overview.md): слои проекта, пользовательские интерфейсы и общая логика маршрутизации.
 - [Подключение и первичная настройка](onboarding.md): выбор SSH/Telnet, профили, установка компонентов и границы автоматизации.
-- [Linux-сборка и публикация](distribution.md): `.deb`, переносимый архив, PyInstaller и GitHub Release.
+- [Windows/Linux-сборка и публикация](distribution.md): нативные архивы, `.deb`, PyInstaller и GitHub Release.

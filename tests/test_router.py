@@ -17,7 +17,7 @@ from keenetic_router.core.router import (
 )
 from keenetic_router.core.onboarding import bootstrap_router, parse_component_states
 from keenetic_router.core.profiles import RouterProfile, load_profile, save_profile
-from keenetic_router.core.scheduler import write_user_units
+from keenetic_router.core.scheduler import enable_windows_task, write_user_units
 from keenetic_router.core.wireguard import (
     delete_wireguard_tunnel,
     import_wireguard_profile,
@@ -337,7 +337,7 @@ class DesktopBootstrapTests(unittest.TestCase):
 
 
 class SchedulerTests(unittest.TestCase):
-    """Verify portable systemd unit generation without invoking systemctl."""
+    """Verify native background schedule commands without changing the host."""
 
     def test_user_timer_points_to_absolute_cli_and_six_hour_interval(self):
         """Generated units retain a spaced path and the requested interval."""
@@ -349,6 +349,21 @@ class SchedulerTests(unittest.TestCase):
             service, timer = write_user_units(cli, root / 'units')
             self.assertIn(f'ExecStart="{cli.resolve()}" sync', service.read_text(encoding='utf-8'))
             self.assertIn('OnUnitActiveSec=6h', timer.read_text(encoding='utf-8'))
+
+    def test_windows_task_runs_kwan_every_six_hours(self):
+        """Task Scheduler receives the frozen CLI path and six-hour interval."""
+        with tempfile.TemporaryDirectory() as directory:
+            cli = Path(directory) / 'Пакетыч' / 'kwan.exe'
+            cli.parent.mkdir()
+            cli.write_bytes(b'MZ')
+            with patch('keenetic_router.core.scheduler.subprocess.run') as run:
+                result = enable_windows_task(cli)
+            self.assertTrue(result.enabled)
+            command = run.call_args.args[0]
+            self.assertEqual(command[0], 'schtasks.exe')
+            self.assertIn('6', command)
+            self.assertIn('Paketych route sync', command)
+            self.assertIn('kwan.exe', command[-1])
 
 
 class FaviconTests(unittest.TestCase):
