@@ -23,7 +23,7 @@ def main():
     release_dir = root / 'dist' / 'release'
     release_dir.mkdir(parents=True, exist_ok=True)
     archive = shutil.make_archive(
-        str(release_dir / f'keenetic-route-manager-{args.platform}'),
+        str(release_dir / f'paketych-{args.platform}'),
         'zip',
         staging,
     )

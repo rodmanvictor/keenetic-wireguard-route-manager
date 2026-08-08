@@ -15,7 +15,7 @@ from keenetic_router.core.router import (
     configure_runtime_connection,
     create_ssh_client,
     create_telnet_client,
-    discover_wireguard_tunnels,
+    discover_wireguard_tunnel_details,
 )
 
 
@@ -38,6 +38,8 @@ class BootstrapReport:
         ssh_enabled: Whether a real SSH login succeeded.
         telnet_fallback: Whether subsequent operations must use Telnet.
         tunnels: Mapping such as ``wg1 -> Wireguard1`` discovered live.
+        tunnel_labels: User-assigned interface descriptions keyed by ``wgN``.
+        tunnel_statuses: Live ``up`` or ``down`` state keyed by ``wgN``.
         steps: Ordered diagnostic messages safe to show in CLI and GUI.
     """
 
@@ -46,6 +48,8 @@ class BootstrapReport:
     ssh_enabled: bool = False
     telnet_fallback: bool = False
     tunnels: dict[str, str] = field(default_factory=dict)
+    tunnel_labels: dict[str, str] = field(default_factory=dict)
+    tunnel_statuses: dict[str, str] = field(default_factory=dict)
     steps: list[DiagnosticStep] = field(default_factory=list)
 
     @property
@@ -122,8 +126,12 @@ def _open_telnet(profile, password):
 def _discover_and_close(client):
     """Discover WireGuard interfaces and always close the temporary client."""
     try:
-        tunnels, _inverse = discover_wireguard_tunnels(client)
-        return tunnels
+        details = discover_wireguard_tunnel_details(client)
+        return (
+            {short: tunnel.interface for short, tunnel in details.items()},
+            {short: tunnel.display_name for short, tunnel in details.items()},
+            {short: tunnel.status for short, tunnel in details.items()},
+        )
     finally:
         client.disconnect()
 
@@ -160,7 +168,7 @@ def bootstrap_router(profile, password, *, auto_enable_ssh=True, ssh_wait=20):
         report.transport = 'ssh'
         report.ssh_enabled = True
         report.steps.append(DiagnosticStep('ssh-login', 'ok', f'SSH подключён на порту {profile.ssh_port}'))
-        report.tunnels = _discover_and_close(ssh)
+        report.tunnels, report.tunnel_labels, report.tunnel_statuses = _discover_and_close(ssh)
         configure_runtime_connection(
             profile.host,
             profile.user,
@@ -218,7 +226,7 @@ def bootstrap_router(profile, password, *, auto_enable_ssh=True, ssh_wait=20):
             report.transport = 'ssh'
             report.ssh_enabled = True
             report.steps.append(DiagnosticStep('ssh-verify', 'ok', 'Повторный вход по SSH подтверждён'))
-            report.tunnels = _discover_and_close(ssh)
+            report.tunnels, report.tunnel_labels, report.tunnel_statuses = _discover_and_close(ssh)
             configure_runtime_connection(
                 profile.host,
                 profile.user,
@@ -231,7 +239,10 @@ def bootstrap_router(profile, password, *, auto_enable_ssh=True, ssh_wait=20):
 
     report.transport = 'telnet'
     report.telnet_fallback = True
-    report.tunnels, _inverse = discover_wireguard_tunnels(telnet)
+    details = discover_wireguard_tunnel_details(telnet)
+    report.tunnels = {short: tunnel.interface for short, tunnel in details.items()}
+    report.tunnel_labels = {short: tunnel.display_name for short, tunnel in details.items()}
+    report.tunnel_statuses = {short: tunnel.status for short, tunnel in details.items()}
     telnet.disconnect()
     report.steps.append(
         DiagnosticStep(

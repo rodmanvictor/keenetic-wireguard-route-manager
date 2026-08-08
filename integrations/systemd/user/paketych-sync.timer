@@ -1,0 +1,11 @@
+[Unit]
+Description=Пакетыч: обновлять маршруты каждые 6 часов
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=6h
+Persistent=true
+Unit=paketych-sync.service
+
+[Install]
+WantedBy=timers.target

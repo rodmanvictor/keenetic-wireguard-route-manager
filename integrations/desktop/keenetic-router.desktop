@@ -1,12 +1,12 @@
 [Desktop Entry]
 Type=Application
-Name=Keenetic Routes
-Name[ru]=Маршруты Keenetic
+Name=Пакетыч
+Name[ru]=Пакетыч
 Comment=Manage domains routed through WireGuard
 Comment[ru]=Домены и маршруты через WireGuard
 Exec=keenetic-desktop
-Icon=keenetic-router
+Icon=paketych
 Terminal=false
 Categories=Network;
 StartupNotify=true
-StartupWMClass=Keenetic Routes
+StartupWMClass=Пакетыч

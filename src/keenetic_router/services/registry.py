@@ -7,6 +7,7 @@ import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlsplit
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -158,14 +159,30 @@ def connect():
 
 
 def normalize_domain(value):
-    """Validate and canonicalize a hostname accepted for recurring updates."""
-    domain = value.strip().rstrip('.').lower()
+    """Extract, validate, and canonicalize a hostname or pasted website URL.
+
+    Args:
+        value: Bare hostname or URL containing a scheme, port, path, query, or
+            fragment.
+
+    Returns:
+        Lowercase IDNA hostname without a trailing dot.
+
+    Raises:
+        ValueError: If no valid DNS hostname can be extracted.
+    """
+    text = str(value or '').strip()
+    parsed = urlsplit(text if '://' in text else f'//{text}')
+    try:
+        domain = (parsed.hostname or '').strip().rstrip('.').lower()
+    except ValueError as error:
+        raise ValueError('Не удалось найти домен в адресе') from error
     try:
         domain = domain.encode('idna').decode('ascii')
     except UnicodeError as error:
         raise ValueError('Некорректное имя домена') from error
     if not DOMAIN_PATTERN.fullmatch(domain):
-        raise ValueError('Введите домен без http://, пути и пробелов')
+        raise ValueError('Не удалось найти домен в адресе')
     return domain
 
 

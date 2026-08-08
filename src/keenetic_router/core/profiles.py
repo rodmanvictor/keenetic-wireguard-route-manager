@@ -1,8 +1,8 @@
-"""Cross-platform storage for non-secret router profiles.
+"""Cross-platform storage for router profiles.
 
-Only connection coordinates are persisted.  Administrator passwords stay in
-the process memory and are requested by the CLI or desktop application for
-each session.
+The administrator password is stored in the user's local JSON configuration
+because this single-user utility is designed for repeat connections.  On
+POSIX systems the directory and file are restricted to the current user.
 """
 
 from dataclasses import asdict, dataclass
@@ -23,6 +23,7 @@ class RouterProfile:
         ssh_port: SSH server TCP port.
         telnet_port: Telnet server TCP port.
         preferred_transport: Last transport proven by onboarding diagnostics.
+        password: KeeneticOS administrator password saved for repeat logins.
     """
 
     name: str = 'default'
@@ -31,6 +32,7 @@ class RouterProfile:
     ssh_port: int = 22
     telnet_port: int = 23
     preferred_transport: str = 'auto'
+    password: str = ''
 
     def validate(self):
         """Return a validated copy suitable for network operations.
@@ -56,6 +58,7 @@ class RouterProfile:
             ssh_port=int(self.ssh_port),
             telnet_port=int(self.telnet_port),
             preferred_transport=self.preferred_transport,
+            password=self.password,
         )
 
 
@@ -88,6 +91,7 @@ def environment_profile():
         preferred_transport='ssh'
         if os.getenv('ROUTER_USE_SSH', 'false').lower() == 'true'
         else 'auto',
+        password=os.getenv('ROUTER_PASS', ''),
     ).validate()
 
 
@@ -111,7 +115,7 @@ def load_profile():
 
 
 def save_profile(profile):
-    """Persist one validated non-secret profile and return the written path.
+    """Persist one validated profile, including its password, and return its path.
 
     Side effects:
         Creates the native configuration directory with user-only permissions
@@ -124,7 +128,7 @@ def save_profile(profile):
         path.parent.chmod(0o700)
     except OSError:
         pass
-    payload = {'version': 1, 'default': validated.name, 'profiles': {validated.name: asdict(validated)}}
+    payload = {'version': 2, 'default': validated.name, 'profiles': {validated.name: asdict(validated)}}
     temporary = path.with_suffix('.tmp')
     temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     try:
@@ -132,6 +136,10 @@ def save_profile(profile):
     except OSError:
         pass
     temporary.replace(path)
+    try:
+        path.chmod(0o600)
+    except OSError:
+        pass
     return path
 
 

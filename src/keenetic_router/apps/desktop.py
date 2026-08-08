@@ -2,12 +2,14 @@
 """Cross-platform Flet application for onboarding and route management.
 
 The first screen authenticates to one router, enables SSH through Telnet when
-possible, and keeps the password only in memory.  The dashboard remains a thin
-layer over the shared registry, synchronizer, and WireGuard importer.
+possible, and stores the password in the current user's JSON configuration.
+The dashboard remains a thin layer over the shared registry, synchronizer, and
+WireGuard importer.
 """
 
 import asyncio
 from dataclasses import replace
+from importlib.resources import files
 
 import flet as ft
 
@@ -18,16 +20,21 @@ from keenetic_router.core.onboarding import (
 )
 from keenetic_router.core.profiles import RouterProfile, load_profile, save_profile
 from keenetic_router.core.router import clear_runtime_connection, create_router_client
+from keenetic_router.core.scheduler import enable_user_timer
 from keenetic_router.core.wireguard import (
+    delete_wireguard_tunnel,
     import_wireguard_profile,
     load_wireguard_file,
     load_wireguard_qr,
+    rename_wireguard_tunnel,
+    set_wireguard_tunnel_enabled,
 )
 from keenetic_router.services.registry import (
     add_managed_domain,
     domain_addresses,
     domain_inventory_routes,
     list_managed_domains,
+    normalize_domain,
     recent_runs,
     remove_managed_domain,
     source_label,
@@ -36,6 +43,8 @@ from keenetic_router.services.registry import (
 from keenetic_router.services.sync import sync_domains
 from keenetic_router.services.cleanup import purge_domain_routes
 from keenetic_router.services.catalog import reconcile_inventory_domains
+from keenetic_router.services.inventory import import_current_inventory
+from keenetic_router.services.favicons import favicon_url
 
 
 BG = '#0B0E0C'
@@ -46,6 +55,8 @@ TEXT = '#F2F6EE'
 MUTED = '#899487'
 ACID = '#B8F34A'
 DANGER = '#FF786E'
+BRAND_ICON = files('keenetic_router').joinpath('assets/paketych-icon-small.png').read_bytes()
+BRAND_MASCOT = files('keenetic_router').joinpath('assets/paketych-mascot.png').read_bytes()
 
 
 class RouteDesktop:
@@ -62,66 +73,54 @@ class RouteDesktop:
     def __init__(self, page: ft.Page):
         self.page = page
         self.profile = load_profile()
-        self.password = ''
+        self.password = self.profile.password
         self.report = None
         self.tunnels = {}
+        self.tunnel_labels = {}
+        self.tunnel_statuses = {}
         self.component_states = {}
         self.rows = []
         self.selected_id = None
         self.busy = False
+        self.initial_status = 'Локальная база готова'
 
-        self.search = ft.TextField(
-            hint_text='Поиск домена',
-            prefix_icon=ft.Icons.SEARCH,
+        self.quick_domain = ft.TextField(
+            hint_text='Добавить сайт',
+            prefix_icon=ft.Icons.LANGUAGE,
             border_radius=14,
             border_color=LINE,
             focused_border_color=ACID,
             bgcolor=PANEL,
             color=TEXT,
             dense=True,
-            on_change=self.render_domains,
+            height=48,
+            on_submit=self.quick_add_site,
             expand=True,
         )
-        self.source_filter = ft.Dropdown(
-            value='all',
-            width=185,
-            border_radius=14,
-            border_color=LINE,
-            focused_border_color=ACID,
-            bgcolor=PANEL,
-            color=TEXT,
-            dense=True,
-            options=[
-                ft.DropdownOption(key='all', text='Все источники'),
-                ft.DropdownOption(key='chrome', text='Только Chrome'),
-                ft.DropdownOption(key='desktop', text='Только Desktop'),
-                ft.DropdownOption(key='rucens', text='Только rucens'),
-            ],
-            on_select=self.render_domains,
-        )
         self.domain_list = ft.ListView(expand=True, spacing=8, padding=0)
+        self.domain_count_text = ft.Text('0 добавлено', color=MUTED, size=10)
         self.detail = ft.Column(expand=True, spacing=12)
         self.status_text = ft.Text('Локальная база', color=MUTED, size=12)
-        self.progress = ft.ProgressBar(color=ACID, bgcolor=LINE, visible=False)
+        self.sync_button = None
         self.root = ft.Column(expand=True, spacing=0)
         self.file_picker = ft.FilePicker()
 
     def configure_page(self):
         """Apply the desktop theme and render the first-run connection screen."""
-        self.page.title = 'Keenetic · маршруты сайтов'
+        self.page.title = 'Пакетыч · сайты через VPN'
         self.page.bgcolor = BG
         self.page.theme_mode = ft.ThemeMode.DARK
         self.page.padding = 0
         self.page.window.width = 1080
-        self.page.window.height = 720
-        self.page.window.min_width = 850
-        self.page.window.min_height = 580
+        self.page.window.height = 800
+        self.page.window.min_width = 900
+        self.page.window.min_height = 620
         self.page.services.append(self.file_picker)
         self.page.add(self.root)
         self.render_login()
 
     def render_login(self, error=None):
-        """Render a focused single-router connection and diagnostics screen."""
+        """Render a stable two-column connection screen without layout jumps."""
         self.root.controls.clear()
         host = ft.TextField(
             label='Адрес роутера',
@@ -140,6 +139,7 @@ class RouteDesktop:
         )
         password = ft.TextField(
             label='Пароль',
+            value=self.profile.password,
             password=True,
             can_reveal_password=True,
             prefix_icon=ft.Icons.KEY,
@@ -153,19 +153,44 @@ class RouteDesktop:
             active_color=ACID,
         )
         login_status = ft.Text(error or '', color=DANGER if error else MUTED, size=12)
-        login_progress = ft.ProgressBar(color=ACID, bgcolor=LINE, visible=False)
+
+        def button_content(label, *, loading=False):
+            """Return fixed-height button contents for idle or loading state."""
+            leading = (
+                ft.ProgressRing(width=18, height=18, stroke_width=2, color=BG)
+                if loading
+                else ft.Icon(ft.Icons.LINK, size=18, color=BG)
+            )
+            return ft.Row(
+                tight=True,
+                spacing=10,
+                alignment=ft.MainAxisAlignment.CENTER,
+                controls=[leading, ft.Text(label, weight=ft.FontWeight.BOLD)],
+            )
+
+        def set_connecting(label):
+            """Lock the submit button and replace its contents in place."""
+            connect_button.disabled = True
+            connect_button.content = button_content(label, loading=True)
+            login_status.color = MUTED
+            login_status.value = ''
+            self.page.update()
+
+        def reset_connect_button():
+            """Restore the idle submit state after a failed connection."""
+            connect_button.disabled = False
+            connect_button.content = button_content('Подключиться')
 
         async def connect(_event=None):
-            login_progress.visible = True
-            login_status.color = MUTED
-            login_status.value = 'Проверяю SSH и Telnet…'
-            self.page.update()
+            set_connecting('Проверяю SSH…')
             try:
                 profile = RouterProfile(
+                    name=self.profile.name,
                     host=host.value or '',
                     user=user.value or '',
                     ssh_port=self.profile.ssh_port,
                     telnet_port=self.profile.telnet_port,
+                    password=password.value or '',
                 ).validate()
                 report = await asyncio.to_thread(
                     bootstrap_router,
@@ -173,15 +198,31 @@ class RouteDesktop:
                     password.value or '',
                     auto_enable_ssh=bool(auto_ssh.value),
                 )
-                selected = replace(profile, preferred_transport=report.transport or 'auto')
+                selected = replace(
+                    profile,
+                    preferred_transport=report.transport or 'auto',
+                    password=password.value or '',
+                )
                 save_profile(selected)
                 self.profile = selected
                 self.password = password.value or ''
                 self.report = report
                 self.tunnels = dict(report.tunnels)
+                self.tunnel_labels = dict(report.tunnel_labels)
+                self.tunnel_statuses = dict(report.tunnel_statuses)
+                set_connecting('Читаю маршруты…')
                 self.component_states = await asyncio.to_thread(self._inspect_components)
+                try:
+                    inventory_note = await asyncio.to_thread(self._bootstrap_inventory_if_needed)
+                except Exception as exception:
+                    inventory_note = f'Подключено, но маршруты не импортированы: {exception}'
+                if inventory_note:
+                    self.initial_status = inventory_note
+                timer = await asyncio.to_thread(enable_user_timer)
+                if timer.enabled:
+                    self.initial_status = f'{self.initial_status} · автообновление каждые 6 ч'
             except Exception as exception:
-                login_progress.visible = False
+                reset_connect_button()
                 login_status.color = DANGER
                 login_status.value = str(exception)
                 self.page.update()
@@ -190,66 +231,93 @@ class RouteDesktop:
             self.reload_data()
 
         connect_button = ft.Button(
-            'Подключиться',
-            icon=ft.Icons.LINK,
+            content=button_content('Подключиться'),
             bgcolor=ACID,
             color=BG,
-            height=46,
+            height=52,
+            width=430,
+            elevation=0,
             on_click=connect,
         )
-        card = ft.Container(
-            width=520,
-            padding=32,
-            border_radius=22,
-            bgcolor=PANEL,
-            border=ft.Border.all(1, LINE),
+        hero = ft.Container(
+            width=460,
+            bgcolor='#101510',
+            padding=48,
+            alignment=ft.Alignment.CENTER,
             content=ft.Column(
-                spacing=16,
+                tight=True,
+                spacing=14,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 controls=[
-                    ft.Container(
-                        width=54,
-                        height=54,
-                        border_radius=16,
-                        bgcolor=ACID,
-                        alignment=ft.Alignment.CENTER,
-                        content=ft.Icon(ft.Icons.ROUTER, color=BG, size=28),
+                    ft.Image(
+                        src=BRAND_MASCOT,
+                        width=300,
+                        height=300,
+                        fit=ft.BoxFit.CONTAIN,
+                        filter_quality=ft.FilterQuality.NONE,
                     ),
-                    ft.Text('Подключить Keenetic', color=TEXT, size=28, weight=ft.FontWeight.BOLD),
+                    ft.Text('ПАКЕТЫЧ', color=ACID, size=13, weight=ft.FontWeight.BOLD),
                     ft.Text(
-                        'Приложение сначала проверит SSH. Если он выключен, подключится по Telnet, '
-                        'запустит SSH и проверит повторный вход.',
+                        'Доставляет сайты\nчерез нужный VPN',
+                        color=TEXT,
+                        size=28,
+                        weight=ft.FontWeight.BOLD,
+                        text_align=ft.TextAlign.CENTER,
+                    ),
+                    ft.Text(
+                        'Остальной интернет продолжает работать\nчерез домашнего провайдера.',
                         color=MUTED,
                         size=13,
-                    ),
-                    host,
-                    user,
-                    password,
-                    auto_ssh,
-                    login_progress,
-                    login_status,
-                    connect_button,
-                    ft.Text(
-                        'Пароль хранится только до закрытия приложения.',
-                        color=MUTED,
-                        size=10,
+                        text_align=ft.TextAlign.CENTER,
                     ),
                 ],
             ),
         )
-        self.root.controls.append(
-            ft.Container(
-                expand=True,
-                alignment=ft.Alignment.CENTER,
-                padding=28,
+        form = ft.Container(
+            expand=True,
+            bgcolor=BG,
+            padding=52,
+            alignment=ft.Alignment.CENTER,
+            content=ft.Container(
+                width=430,
                 content=ft.Column(
                     tight=True,
-                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    spacing=16,
                     controls=[
-                        ft.Text('ROUTE CONTROL', color=ACID, size=11, weight=ft.FontWeight.BOLD),
-                        ft.Container(height=12),
-                        card,
+                        ft.Text('Подключение к роутеру', color=TEXT, size=30, weight=ft.FontWeight.BOLD),
+                        ft.Text(
+                            'Введите данные администратора Keenetic. Это нужно один раз.',
+                            color=MUTED,
+                            size=13,
+                        ),
+                        ft.Container(height=8),
+                        host,
+                        user,
+                        password,
+                        auto_ssh,
+                        ft.Container(height=36, alignment=ft.Alignment.CENTER_LEFT, content=login_status),
+                        connect_button,
+                        ft.Row(
+                            spacing=8,
+                            controls=[
+                                ft.Icon(ft.Icons.LOCK_OUTLINE, color=MUTED, size=14),
+                                ft.Text(
+                                    'Пароль сохранится в локальном JSON с правами 600.',
+                                    color=MUTED,
+                                    size=10,
+                                ),
+                            ],
+                        ),
                     ],
                 ),
+            ),
+        )
+        self.root.controls.append(
+            ft.Row(
+                expand=True,
+                spacing=0,
+                vertical_alignment=ft.CrossAxisAlignment.STRETCH,
+                controls=[hero, form],
             )
         )
         self.page.update()
@@ -262,13 +330,34 @@ class RouteDesktop:
         finally:
             client.disconnect()
 
+    def _bootstrap_inventory_if_needed(self):
+        """Recover existing router routes when the local registry is empty.
+
+        Returns:
+            A short user-facing import summary, or an empty string when the
+            registry already contains managed domains.
+
+        Side effects:
+            Reads live WireGuard routes and public attribution lists, stores
+            their ownership in SQLite, and registers known single-tunnel DNS
+            domains.  The router configuration is never changed.
+        """
+        if list_managed_domains():
+            return ''
+        inventory = import_current_inventory()
+        linked = reconcile_inventory_domains()
+        return (
+            f'Найдено маршрутов: {inventory["routes"]} · '
+            f'восстановлено доменов: {linked.registered}'
+        )
+
     def render_dashboard(self):
         """Assemble the authenticated router dashboard."""
+        self.status_text.value = self.initial_status
         self.root.controls.clear()
         self.root.controls.extend(
             [
                 self._header(),
-                self.progress,
                 self._component_notice(),
                 ft.Row(
                     expand=True,
@@ -310,9 +399,11 @@ class RouteDesktop:
     def disconnect_router(self, _event=None):
         """Forget session credentials and return to the connection screen."""
         clear_runtime_connection()
-        self.password = ''
+        self.password = self.profile.password
         self.report = None
         self.tunnels = {}
+        self.tunnel_labels = {}
+        self.tunnel_statuses = {}
         self.component_states = {}
         self.render_login()
 
@@ -365,6 +456,302 @@ class RouteDesktop:
             actions=[
                 ft.Button('Отмена', on_click=lambda _event: self.page.pop_dialog()),
                 ft.Button('Установить и разрешить перезагрузку', bgcolor='#FFD36A', color=BG, on_click=apply),
+            ],
+        )
+        self.page.show_dialog(dialog)
+
+    def reopen_vpn_manager(self, _event=None):
+        """Close the current VPN subdialog and return to the profile list."""
+        self.page.pop_dialog()
+        self.open_vpn_manager()
+
+    def open_vpn_manager(self, _event=None):
+        """Show existing named VPN profiles and their safe management actions."""
+        cards = []
+        for short, interface in sorted(self.tunnels.items()):
+            name = self.tunnel_display_name(short)
+            status = self.tunnel_statuses.get(short, 'unknown')
+            active_domains = sum(
+                1 for row in self.rows if row['enabled'] and row['tunnel'] == short
+            )
+            status_up = status == 'up'
+            cards.append(
+                ft.Container(
+                    padding=14,
+                    border_radius=14,
+                    bgcolor=PANEL,
+                    border=ft.Border.all(1, LINE),
+                    content=ft.Row(
+                        controls=[
+                            ft.Container(
+                                width=42,
+                                height=42,
+                                border_radius=12,
+                                alignment=ft.Alignment.CENTER,
+                                bgcolor=ft.Colors.with_opacity(
+                                    0.12,
+                                    ACID if status_up else MUTED,
+                                ),
+                                content=ft.Icon(
+                                    ft.Icons.SHIELD_OUTLINED,
+                                    color=ACID if status_up else MUTED,
+                                ),
+                            ),
+                            ft.Column(
+                                expand=True,
+                                spacing=2,
+                                controls=[
+                                    ft.Text(name, color=TEXT, size=16, weight=ft.FontWeight.BOLD),
+                                    ft.Text(
+                                        f'{interface} · {short} · сайтов: {active_domains}',
+                                        color=MUTED,
+                                        size=10,
+                                    ),
+                                ],
+                            ),
+                            ft.Container(
+                                padding=ft.Padding.symmetric(horizontal=9, vertical=4),
+                                border_radius=18,
+                                bgcolor=ft.Colors.with_opacity(
+                                    0.12,
+                                    ACID if status_up else MUTED,
+                                ),
+                                content=ft.Text(
+                                    'ВКЛ' if status_up else 'ВЫКЛ',
+                                    color=ACID if status_up else MUTED,
+                                    size=9,
+                                    weight=ft.FontWeight.BOLD,
+                                ),
+                            ),
+                            ft.IconButton(
+                                icon=ft.Icons.EDIT_OUTLINED,
+                                icon_color=MUTED,
+                                tooltip='Переименовать',
+                                on_click=lambda _event, selected=short: self.open_rename_tunnel(
+                                    selected
+                                ),
+                            ),
+                            ft.IconButton(
+                                icon=(
+                                    ft.Icons.POWER_SETTINGS_NEW
+                                    if status_up
+                                    else ft.Icons.PLAY_ARROW
+                                ),
+                                icon_color=DANGER if status_up else ACID,
+                                tooltip='Отключить' if status_up else 'Включить',
+                                on_click=lambda _event, selected=short: self.confirm_tunnel_toggle(
+                                    selected
+                                ),
+                            ),
+                            ft.IconButton(
+                                icon=ft.Icons.DELETE_OUTLINE,
+                                icon_color=DANGER,
+                                tooltip='Удалить VPN',
+                                on_click=lambda _event, selected=short: self.confirm_tunnel_delete(
+                                    selected
+                                ),
+                            ),
+                        ]
+                    ),
+                )
+            )
+        if not cards:
+            cards.append(
+                ft.Container(
+                    padding=28,
+                    alignment=ft.Alignment.CENTER,
+                    content=ft.Text('На роутере пока нет WireGuard-профилей', color=MUTED),
+                )
+            )
+
+        def add_new(_event=None):
+            self.page.pop_dialog()
+            self.open_tunnel_dialog()
+
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text('Настройка VPN'),
+            content=ft.Column(
+                width=700,
+                height=430,
+                spacing=12,
+                controls=[
+                    ft.Text(
+                        'Показываются названия, заданные в Keenetic. Технические имена оставлены мелко.',
+                        color=MUTED,
+                        size=11,
+                    ),
+                    ft.ListView(expand=True, spacing=8, controls=cards),
+                ],
+            ),
+            actions=[
+                ft.Button('Закрыть', on_click=lambda _event: self.page.pop_dialog()),
+                ft.Button(
+                    'Добавить VPN',
+                    icon=ft.Icons.ADD,
+                    bgcolor=ACID,
+                    color=BG,
+                    on_click=add_new,
+                ),
+            ],
+        )
+        self.page.show_dialog(dialog)
+
+    def open_rename_tunnel(self, short):
+        """Request and persist a new user-facing name for one VPN profile."""
+        self.page.pop_dialog()
+        interface = self.tunnels[short]
+        field = ft.TextField(
+            label='Название VPN',
+            value=self.tunnel_display_name(short),
+            hint_text='Например: Махтеев или srv01',
+            autofocus=True,
+        )
+
+        async def apply(_event=None):
+            value = (field.value or '').strip()
+            if not value:
+                field.error = 'Введите название VPN'
+                self.page.update()
+                return
+            self.page.pop_dialog()
+            await self.set_busy(True, f'Переименовываю {interface}…')
+
+            def rename():
+                client = create_router_client()
+                try:
+                    return rename_wireguard_tunnel(client, interface, value)
+                finally:
+                    client.disconnect()
+
+            try:
+                saved = await asyncio.to_thread(rename)
+            except Exception as exception:
+                await self.set_busy(False, f'Не удалось переименовать {interface}')
+                self._show_error(str(exception))
+                return
+            self.tunnel_labels[short] = saved
+            await self.set_busy(False, f'{interface} теперь называется «{saved}»')
+            self.render_dashboard()
+            self.reload_data()
+            self.open_vpn_manager()
+
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text(f'Переименовать {self.tunnel_display_name(short)}'),
+            content=ft.Container(width=420, content=field),
+            actions=[
+                ft.Button('Отмена', on_click=self.reopen_vpn_manager),
+                ft.Button('Сохранить', bgcolor=ACID, color=BG, on_click=apply),
+            ],
+        )
+        self.page.show_dialog(dialog)
+
+    def confirm_tunnel_toggle(self, short):
+        """Confirm a live up/down change before mutating the router."""
+        self.page.pop_dialog()
+        status_up = self.tunnel_statuses.get(short) == 'up'
+        enable = not status_up
+        active_domains = sum(
+            1 for row in self.rows if row['enabled'] and row['tunnel'] == short
+        )
+        action = 'Включить' if enable else 'Отключить'
+        warning = (
+            f'Через этот VPN идут сайты: {active_domains}. Пока VPN выключен, они могут не открываться.'
+            if status_up and active_domains
+            else 'Настройка будет сохранена на роутере.'
+        )
+
+        async def apply(_event=None):
+            self.page.pop_dialog()
+            await self.set_busy(True, f'{action} {self.tunnel_display_name(short)}…')
+
+            def toggle():
+                client = create_router_client()
+                try:
+                    return set_wireguard_tunnel_enabled(
+                        client,
+                        self.tunnels[short],
+                        enable,
+                    )
+                finally:
+                    client.disconnect()
+
+            try:
+                await asyncio.to_thread(toggle)
+            except Exception as exception:
+                await self.set_busy(False, f'Не удалось изменить состояние {self.tunnels[short]}')
+                self._show_error(str(exception))
+                return
+            self.tunnel_statuses[short] = 'up' if enable else 'down'
+            await self.set_busy(False, f'{self.tunnel_display_name(short)}: {action.lower()}')
+            self.render_dashboard()
+            self.reload_data()
+            self.open_vpn_manager()
+
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text(f'{action} {self.tunnel_display_name(short)}?'),
+            content=ft.Text(warning),
+            actions=[
+                ft.Button('Отмена', on_click=self.reopen_vpn_manager),
+                ft.Button(action, color=BG if enable else DANGER, bgcolor=ACID if enable else None, on_click=apply),
+            ],
+        )
+        self.page.show_dialog(dialog)
+
+    def confirm_tunnel_delete(self, short):
+        """Block in-use VPN deletion and confirm an unused interface removal."""
+        self.page.pop_dialog()
+        active_domains = [
+            row['domain']
+            for row in self.rows
+            if row['enabled'] and row['tunnel'] == short
+        ]
+        if active_domains:
+            preview = ', '.join(active_domains[:4])
+            suffix = '…' if len(active_domains) > 4 else ''
+            self._show_error(
+                f'Сначала отключите сайты, использующие этот VPN: {preview}{suffix}'
+            )
+            return
+        interface = self.tunnels[short]
+
+        async def apply(_event=None):
+            self.page.pop_dialog()
+            await self.set_busy(True, f'Удаляю {self.tunnel_display_name(short)}…')
+
+            def delete():
+                client = create_router_client()
+                try:
+                    delete_wireguard_tunnel(client, interface)
+                finally:
+                    client.disconnect()
+
+            try:
+                await asyncio.to_thread(delete)
+            except Exception as exception:
+                await self.set_busy(False, f'Не удалось удалить {interface}')
+                self._show_error(str(exception))
+                return
+            name = self.tunnel_display_name(short)
+            self.tunnels.pop(short, None)
+            self.tunnel_labels.pop(short, None)
+            self.tunnel_statuses.pop(short, None)
+            await self.set_busy(False, f'VPN «{name}» удалён')
+            self.render_dashboard()
+            self.reload_data()
+            self.open_vpn_manager()
+
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text(f'Удалить {self.tunnel_display_name(short)}?'),
+            content=ft.Text(
+                f'{interface} будет удалён из конфигурации Keenetic. Это действие нельзя отменить.'
+            ),
+            actions=[
+                ft.Button('Отмена', on_click=self.reopen_vpn_manager),
+                ft.Button('Удалить VPN', color=DANGER, on_click=apply),
             ],
         )
         self.page.show_dialog(dialog)
@@ -425,7 +812,12 @@ class RouteDesktop:
         """Show a non-secret import summary and apply it after confirmation."""
         summary = profile.summary
         suggested = source_name.rsplit('.', 1)[0][:64] or 'WireGuard VPN'
-        name = ft.TextField(label='Название', value=suggested)
+        name = ft.TextField(
+            label='Название VPN в Keenetic',
+            value=suggested,
+            hint_text='Например: Махтеев или srv01',
+            helper_text='Это имя будет показано при выборе маршрута для сайта.',
+        )
         via = ft.TextField(label='Выход к VPN-серверу', value='ISP', hint_text='ISP')
         interface = ft.TextField(label='Интерфейс (необязательно)', hint_text='Автоматически: Wireguard2')
 
@@ -453,6 +845,8 @@ class RouteDesktop:
                 return
             short = result.interface.lower().replace('wireguard', 'wg')
             self.tunnels[short] = result.interface
+            self.tunnel_labels[short] = (name.value or 'WireGuard VPN').strip()
+            self.tunnel_statuses[short] = 'up'
             await self.set_busy(False, f'{result.interface} создан и сохранён')
             self.render_dashboard()
             self.reload_data()
@@ -496,24 +890,32 @@ class RouteDesktop:
 
     def _header(self):
         transport = (self.report.transport if self.report else 'offline').upper()
+        self.sync_button = ft.Button(
+            icon=ft.Icons.SYNC,
+            color=MUTED,
+            elevation=0,
+            height=44,
+            width=48,
+            tooltip='Проверить DNS и маршруты сейчас',
+            on_click=self.sync_all,
+        )
         return ft.Container(
             padding=ft.Padding.symmetric(horizontal=24, vertical=18),
             border=ft.Border(bottom=ft.BorderSide(1, LINE)),
             content=ft.Row(
                 controls=[
-                    ft.Container(
-                        width=38,
-                        height=38,
-                        border_radius=12,
-                        bgcolor=ACID,
-                        alignment=ft.Alignment.CENTER,
-                        content=ft.Icon(ft.Icons.ROUTE, color=BG, size=21),
+                    ft.Image(
+                        src=BRAND_ICON,
+                        width=46,
+                        height=46,
+                        fit=ft.BoxFit.CONTAIN,
+                        filter_quality=ft.FilterQuality.NONE,
                     ),
                     ft.Column(
                         spacing=1,
                         controls=[
                             ft.Text(
-                                f'KEENETIC · {self.profile.host} · {transport}',
+                                f'ПАКЕТЫЧ · {self.profile.host} · {transport}',
                                 color=ACID,
                                 size=10,
                                 weight=ft.FontWeight.BOLD,
@@ -524,28 +926,15 @@ class RouteDesktop:
                     ),
                     ft.Container(expand=True),
                     ft.Button(
-                        'Обновить',
-                        icon=ft.Icons.SYNC,
-                        color=BG,
-                        bgcolor=ACID,
-                        elevation=0,
-                        on_click=self.sync_all,
-                    ),
-                    ft.Button(
-                        'VPN',
-                        icon=ft.Icons.SHIELD_OUTLINED,
+                        'Настройка VPN',
+                        icon=ft.Icons.TUNE,
                         color=TEXT,
                         bgcolor=PANEL_ACTIVE,
                         elevation=0,
-                        on_click=self.open_tunnel_dialog,
+                        height=44,
+                        on_click=self.open_vpn_manager,
                     ),
-                    ft.IconButton(
-                        icon=ft.Icons.ADD,
-                        icon_color=TEXT,
-                        bgcolor=PANEL_ACTIVE,
-                        tooltip='Добавить домен',
-                        on_click=self.open_add_dialog,
-                    ),
+                    self.sync_button,
                     ft.IconButton(
                         icon=ft.Icons.LOGOUT,
                         icon_color=MUTED,
@@ -558,18 +947,32 @@ class RouteDesktop:
 
     def _left_panel(self):
         return ft.Container(
-            width=500,
+            width=480,
             padding=20,
             border=ft.Border(right=ft.BorderSide(1, LINE)),
             content=ft.Column(
                 expand=True,
                 controls=[
-                    ft.Row(controls=[self.search, self.source_filter]),
+                    ft.Row(
+                        controls=[
+                            self.quick_domain,
+                            ft.Button(
+                                icon=ft.Icons.ADD,
+                                color=BG,
+                                bgcolor=ACID,
+                                elevation=0,
+                                height=48,
+                                width=52,
+                                tooltip='Добавить сайт',
+                                on_click=self.quick_add_site,
+                            ),
+                        ]
+                    ),
                     ft.Row(
                         alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                         controls=[
-                            ft.Text('ДОМЕНЫ', color=MUTED, size=10, weight=ft.FontWeight.BOLD),
-                            ft.Text('Источник · маршруты', color=MUTED, size=10),
+                            ft.Text('САЙТЫ', color=MUTED, size=10, weight=ft.FontWeight.BOLD),
+                            self.domain_count_text,
                         ],
                     ),
                     self.domain_list,
@@ -595,37 +998,51 @@ class RouteDesktop:
             )
         return badges
 
-    def visible_rows(self):
-        """Return rows matching the current text and provenance filters."""
-        query = (self.search.value or '').strip().lower()
-        source = self.source_filter.value or 'all'
-        result = []
-        for row in self.rows:
-            sources = split_sources(row['sources'])
-            if query and query not in row['domain'].lower():
-                continue
-            if source == 'rucens' and not any(item.startswith('rucens:') for item in sources):
-                continue
-            if source not in {'all', 'rucens'} and source not in sources:
-                continue
-            result.append(row)
-        return result
+    @staticmethod
+    def domain_avatar(domain, radius=20):
+        """Return a remote favicon with a readable local letter fallback.
+
+        Args:
+            domain: Validated managed hostname.
+            radius: Avatar radius in logical pixels.
+
+        Returns:
+            Flet avatar.  Failure of the external image never hides the domain
+            because the first letter remains as background content.
+        """
+        return ft.CircleAvatar(
+            radius=radius,
+            foreground_image_src=favicon_url(domain, 64),
+            bgcolor=PANEL_ACTIVE,
+            color=ACID,
+            content=ft.Text(domain[0].upper(), weight=ft.FontWeight.BOLD),
+        )
+
+    def tunnel_display_name(self, short_name):
+        """Return a router-assigned VPN name before its technical identifier."""
+        return self.tunnel_labels.get(short_name) or self.tunnels.get(short_name) or short_name
 
     def render_domains(self, _event=None):
         """Rebuild the domain list without contacting the router."""
         self.domain_list.controls.clear()
-        visible = self.visible_rows()
+        visible = self.rows
+        self.domain_count_text.value = f'{len(self.rows)} добавлено'
         if not visible:
             self.domain_list.controls.append(
                 ft.Container(
                     padding=24,
                     alignment=ft.Alignment.CENTER,
-                    content=ft.Text('Здесь пока пусто', color=MUTED),
+                    content=ft.Text(
+                        'Сайтов пока нет. Нажми «Добавить сайт», чтобы создать первый маршрут.',
+                        color=MUTED,
+                        text_align=ft.TextAlign.CENTER,
+                    ),
                 )
             )
         for row in visible:
             selected = row['id'] == self.selected_id
             badges = self.source_badges(row)
+            enabled = bool(row['enabled'])
             self.domain_list.controls.append(
                 ft.Container(
                     data=row['id'],
@@ -636,26 +1053,38 @@ class RouteDesktop:
                     on_click=self.select_domain,
                     content=ft.Row(
                         controls=[
+                            self.domain_avatar(row['domain']),
                             ft.Column(
                                 expand=True,
                                 spacing=5,
                                 controls=[
-                                    ft.Text(row['domain'], color=TEXT, size=14, weight=ft.FontWeight.BOLD),
+                                    ft.Text(
+                                        row['domain'],
+                                        color=TEXT if enabled else MUTED,
+                                        size=14,
+                                        weight=ft.FontWeight.BOLD,
+                                    ),
                                     ft.Row(spacing=5, wrap=True, controls=badges),
                                 ],
                             ),
-                            ft.Column(
-                                horizontal_alignment=ft.CrossAxisAlignment.END,
-                                spacing=1,
-                                controls=[
-                                    ft.Text(
-                                        str(row['inventory_route_count'] + row['address_count']),
-                                        color=TEXT,
-                                        size=16,
-                                        weight=ft.FontWeight.BOLD,
-                                    ),
-                                    ft.Text('МАРШРУТОВ', color=MUTED, size=8),
-                                ],
+                            ft.Container(
+                                width=108,
+                                padding=ft.Padding.symmetric(horizontal=10, vertical=5),
+                                border_radius=18,
+                                alignment=ft.Alignment.CENTER,
+                                bgcolor=ft.Colors.with_opacity(0.12, ACID if enabled else MUTED),
+                                content=ft.Text(
+                                    self.tunnel_display_name(row['tunnel']) if enabled else 'выкл.',
+                                    color=ACID if enabled else MUTED,
+                                    size=10,
+                                    weight=ft.FontWeight.BOLD,
+                                    max_lines=1,
+                                    overflow=ft.TextOverflow.ELLIPSIS,
+                                ),
+                                tooltip=(
+                                    f'{self.tunnel_display_name(row["tunnel"])} · '
+                                    f'{row["tunnel"]} · {self.tunnels.get(row["tunnel"], "WireGuard")}'
+                                ),
                             ),
                             ft.Icon(ft.Icons.CHEVRON_RIGHT, color=MUTED, size=17),
                         ]
@@ -665,7 +1094,7 @@ class RouteDesktop:
         self.page.update()
 
     def select_domain(self, event):
-        """Select a row from the list and render its stored IP addresses."""
+        """Select a row from the list and render its everyday controls."""
         self.selected_id = event.control.data
         self.render_domains()
         self.render_detail()
@@ -675,7 +1104,7 @@ class RouteDesktop:
         return next((row for row in self.rows if row['id'] == self.selected_id), None)
 
     def render_detail(self):
-        """Render provenance, timing and IP history for the selected domain."""
+        """Render only the selected domain's primary everyday controls."""
         self.detail.controls.clear()
         row = self.selected_row()
         if row is None:
@@ -690,12 +1119,10 @@ class RouteDesktop:
             self.page.update()
             return
 
-        addresses = domain_addresses(row['id'])
-        inventory_routes = domain_inventory_routes(row['id'])
         sources = split_sources(row['sources'])
-        actions = []
+        secondary_actions = []
         if 'chrome' in sources:
-            actions.append(
+            secondary_actions.append(
                 ft.Button(
                     'Убрать метку Chrome',
                     icon=ft.Icons.TIMER_OFF,
@@ -705,92 +1132,224 @@ class RouteDesktop:
                     on_click=self.release_chrome,
                 )
             )
-        actions.append(
-            ft.Button(
-                'Отключить домен',
-                icon=ft.Icons.POWER_SETTINGS_NEW,
-                color=DANGER,
-                bgcolor='#2B1716',
-                elevation=0,
-                on_click=self.confirm_disable,
-            )
+        enabled = bool(row['enabled'])
+        state_button = ft.Button(
+            'Отключить' if enabled else 'Включить',
+            icon=ft.Icons.POWER_SETTINGS_NEW,
+            color=DANGER if enabled else BG,
+            bgcolor='#2B1716' if enabled else ACID,
+            elevation=0,
+            on_click=self.confirm_disable if enabled else self.enable_domain,
         )
-        ip_controls = [
-            ft.Container(
-                padding=ft.Padding.symmetric(horizontal=12, vertical=9),
-                border_radius=10,
-                bgcolor=PANEL,
-                border=ft.Border.all(1, LINE),
-                content=ft.Row(
-                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                    controls=[
-                        ft.Text(address['address'], color=TEXT, font_family='monospace', size=13),
-                        ft.Text('DNS · ' + address['last_seen_at'][0:16].replace('T', ' '), color=MUTED, size=10),
-                    ],
-                ),
-            )
-            for address in addresses
-        ]
-        ip_controls.extend(
-            ft.Container(
-                padding=ft.Padding.symmetric(horizontal=12, vertical=9),
-                border_radius=10,
-                bgcolor=PANEL,
-                border=ft.Border.all(1, LINE),
-                content=ft.Row(
-                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                    controls=[
-                        ft.Text(route['network'], color=TEXT, font_family='monospace', size=13),
-                        ft.Text(
-                            f'{route["source_kind"]}:{route["source_name"]} · {route["interface"]}',
-                            color=MUTED,
-                            size=10,
-                        ),
-                    ],
-                ),
-            )
-            for route in inventory_routes
-        )
-        if not ip_controls:
-            ip_controls.append(ft.Text('IP ещё не фиксировались. Запусти обновление.', color=MUTED, size=12))
+        route_count = row['inventory_route_count'] + row['address_count']
 
         self.detail.controls.extend(
             [
-                ft.Text(row['domain'], color=TEXT, size=26, weight=ft.FontWeight.BOLD),
-                ft.Row(spacing=6, wrap=True, controls=self.source_badges(row)),
+                ft.Row(
+                    vertical_alignment=ft.CrossAxisAlignment.START,
+                    controls=[
+                        self.domain_avatar(row['domain'], radius=28),
+                        ft.Column(
+                            expand=True,
+                            spacing=6,
+                            controls=[
+                                ft.Text(row['domain'], color=TEXT, size=27, weight=ft.FontWeight.BOLD),
+                                ft.Row(spacing=6, wrap=True, controls=self.source_badges(row)),
+                            ],
+                        ),
+                        state_button,
+                    ],
+                ),
+                ft.Container(height=8),
                 ft.Container(
-                    padding=16,
-                    border_radius=14,
+                    padding=22,
+                    border_radius=18,
                     bgcolor=PANEL,
                     border=ft.Border.all(1, LINE),
                     content=ft.Row(
-                        alignment=ft.MainAxisAlignment.SPACE_AROUND,
+                        spacing=16,
                         controls=[
-                            self._metric('ТУННЕЛЬ', row['tunnel']),
-                            self._metric('CIDR', str(row['inventory_route_count'])),
-                            self._metric('DNS IP', str(row['address_count'])),
-                            self._metric('ПОСЛЕДНИЙ DNS', self.short_date(row['last_resolved_at'])),
+                            ft.Container(
+                                width=48,
+                                height=48,
+                                border_radius=14,
+                                bgcolor=ft.Colors.with_opacity(0.12, ACID),
+                                alignment=ft.Alignment.CENTER,
+                                content=ft.Icon(ft.Icons.ROUTE, color=ACID, size=24),
+                            ),
+                            ft.Column(
+                                expand=True,
+                                spacing=3,
+                                controls=[
+                                    ft.Text('МАРШРУТ ЧЕРЕЗ', color=MUTED, size=9, weight=ft.FontWeight.BOLD),
+                                    ft.Text(
+                                        self.tunnel_display_name(row['tunnel']) if enabled else 'Отключён',
+                                        color=TEXT,
+                                        size=22,
+                                        weight=ft.FontWeight.BOLD,
+                                    ),
+                                    ft.Text(
+                                        (
+                                            f'{self.tunnels.get(row["tunnel"], "WireGuard")} · '
+                                            f'{row["tunnel"]}'
+                                            if enabled
+                                            else 'Трафик сайта не перенаправляется'
+                                        ),
+                                        color=MUTED,
+                                        size=11,
+                                    ),
+                                ],
+                            ),
+                            ft.Container(
+                                padding=ft.Padding.symmetric(horizontal=10, vertical=5),
+                                border_radius=20,
+                                bgcolor=ft.Colors.with_opacity(0.12, ACID if enabled else MUTED),
+                                content=ft.Text(
+                                    'ВКЛЮЧЁН' if enabled else 'ВЫКЛЮЧЕН',
+                                    color=ACID if enabled else MUTED,
+                                    size=9,
+                                    weight=ft.FontWeight.BOLD,
+                                ),
+                            ),
                         ],
                     ),
                 ),
-                ft.Row(spacing=8, controls=actions),
-                ft.Text('ИЗВЕСТНЫЕ IP И CIDR-МАРШРУТЫ', color=MUTED, size=10, weight=ft.FontWeight.BOLD),
-                ft.ListView(expand=True, spacing=7, controls=ip_controls),
-                ft.Text(
-                    'При отключении удаляются только осиротевшие DNS-маршруты. Общие IP других доменов и rucens сохраняются.',
-                    color=MUTED,
-                    size=10,
+                ft.Row(
+                    spacing=8,
+                    controls=[
+                        ft.Button(
+                            f'Технические данные · {route_count}',
+                            icon=ft.Icons.TUNE,
+                            color=TEXT,
+                            bgcolor=PANEL_ACTIVE,
+                            elevation=0,
+                            on_click=self.open_technical_dialog,
+                        ),
+                        *secondary_actions,
+                    ],
+                ),
+                ft.Container(expand=True),
+                ft.Row(
+                    spacing=7,
+                    controls=[
+                        ft.Icon(ft.Icons.SCHEDULE, color=MUTED, size=15),
+                        ft.Text(
+                            f'Последняя проверка: {self.short_date(row["last_resolved_at"])} · обновление каждые 6 часов',
+                            color=MUTED,
+                            size=11,
+                        ),
+                    ],
                 ),
             ]
         )
         self.page.update()
 
+    def open_technical_dialog(self, _event=None):
+        """Show DNS addresses and published CIDRs outside the main workflow."""
+        row = self.selected_row()
+        if row is None:
+            return
+        addresses = domain_addresses(row['id'])
+        inventory_routes = domain_inventory_routes(row['id'])
+        entries = []
+        for address in addresses:
+            entries.append(
+                self._technical_row(
+                    address['address'],
+                    'DNS',
+                    address['last_seen_at'][0:16].replace('T', ' '),
+                )
+            )
+        for route in inventory_routes:
+            entries.append(
+                self._technical_row(
+                    route['network'],
+                    'CIDR',
+                    f'{route["source_kind"]}:{route["source_name"]} · {route["interface"]}',
+                )
+            )
+        if not entries:
+            entries.append(ft.Text('Адреса ещё не получены. Нажмите «Обновить».', color=MUTED))
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text(f'Технические данные · {row["domain"]}'),
+            content=ft.Column(
+                width=760,
+                height=540,
+                spacing=14,
+                controls=[
+                    ft.Row(
+                        controls=[
+                            self._technical_hint(
+                                ft.Icons.LANGUAGE,
+                                'DNS IP',
+                                'Точный IPv4-адрес, который домен вернул при последней проверке.',
+                            ),
+                            self._technical_hint(
+                                ft.Icons.ACCOUNT_TREE_OUTLINED,
+                                'CIDR',
+                                'Диапазон IPv4-адресов из опубликованного списка сервиса.',
+                            ),
+                        ],
+                    ),
+                    ft.Row(
+                        controls=[
+                            ft.Text('АДРЕС', color=MUTED, size=9, expand=True),
+                            ft.Text('ТИП', color=MUTED, size=9, width=60),
+                            ft.Text('ИСТОЧНИК / ОБНОВЛЕНИЕ', color=MUTED, size=9, width=260),
+                        ]
+                    ),
+                    ft.ListView(expand=True, spacing=6, controls=entries),
+                    ft.Text(
+                        'Эти значения обновляются автоматически. Редактировать их вручную не нужно.',
+                        color=MUTED,
+                        size=10,
+                    ),
+                ],
+            ),
+            actions=[ft.Button('Закрыть', on_click=lambda _event: self.page.pop_dialog())],
+        )
+        self.page.show_dialog(dialog)
+
     @staticmethod
-    def _metric(label, value):
-        return ft.Column(
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            spacing=2,
-            controls=[ft.Text(label, color=MUTED, size=9), ft.Text(value, color=TEXT, size=13, weight=ft.FontWeight.BOLD)],
+    def _technical_hint(icon, title, description):
+        """Return one compact explanation card for a networking term."""
+        return ft.Container(
+            expand=True,
+            padding=14,
+            border_radius=12,
+            bgcolor=PANEL,
+            border=ft.Border.all(1, LINE),
+            content=ft.Row(
+                spacing=10,
+                controls=[
+                    ft.Icon(icon, color=ACID, size=22),
+                    ft.Column(
+                        expand=True,
+                        spacing=2,
+                        controls=[
+                            ft.Text(title, color=TEXT, weight=ft.FontWeight.BOLD),
+                            ft.Text(description, color=MUTED, size=10),
+                        ],
+                    ),
+                ],
+            ),
+        )
+
+    @staticmethod
+    def _technical_row(address, kind, detail):
+        """Return one aligned address row for the technical dialog."""
+        return ft.Container(
+            padding=ft.Padding.symmetric(horizontal=12, vertical=10),
+            border_radius=10,
+            bgcolor=PANEL,
+            content=ft.Row(
+                controls=[
+                    ft.Text(address, color=TEXT, font_family='monospace', size=12, expand=True),
+                    ft.Text(kind, color=ACID if kind == 'DNS' else '#83B9FF', size=10, width=60),
+                    ft.Text(detail, color=MUTED, size=10, width=260),
+                ],
+            ),
         )
 
     @staticmethod
@@ -813,9 +1372,23 @@ class RouteDesktop:
         self.render_detail()
 
     async def set_busy(self, value, text=None):
-        """Toggle the global operation indicator and optional status text."""
+        """Lock manual sync in place and update the compact status text."""
         self.busy = value
-        self.progress.visible = value
+        if self.sync_button is not None:
+            # ``sync_all`` already ignores a second click while busy. Keeping
+            # the control enabled prevents Flet from dimming its inline loader.
+            self.sync_button.disabled = False
+            if value:
+                self.sync_button.icon = None
+                self.sync_button.content = ft.ProgressRing(
+                    width=16,
+                    height=16,
+                    stroke_width=2,
+                    color=ACID,
+                )
+            else:
+                self.sync_button.content = None
+                self.sync_button.icon = ft.Icons.SYNC
         if text:
             self.status_text.value = text
         self.page.update()
@@ -825,19 +1398,44 @@ class RouteDesktop:
         if self.busy:
             return
         await self.set_busy(True, 'Обновляю DNS и маршруты…')
-        summary = await asyncio.to_thread(sync_domains)
+        try:
+            summary = await asyncio.to_thread(sync_domains)
+        except Exception as exception:
+            await self.set_busy(False, f'Обновление не выполнено: {exception}')
+            self._show_error(
+                'Не удалось обновить маршруты. Проверь подключение к роутеру и VPN.\n\n'
+                f'Причина: {exception}'
+            )
+            return
         await self.set_busy(False, f'Добавлено {summary.added} · без изменений {summary.unchanged} · ошибок {summary.errors}')
         self.reload_data()
 
-    def open_add_dialog(self, _event=None):
-        """Open a compact dialog for registering a desktop-sourced domain."""
+    def quick_add_site(self, _event=None):
+        """Validate the inline address and add it or request a VPN choice."""
         if not self.tunnels:
             self._show_error('Сначала добавьте и подключите WireGuard-туннель')
             return
+        try:
+            canonical = normalize_domain(self.quick_domain.value)
+        except ValueError as error:
+            self.quick_domain.error = str(error)
+            self.page.update()
+            return
+        self.quick_domain.error = None
+        self.quick_domain.value = canonical
+        if len(self.tunnels) == 1:
+            selected_tunnel = next(iter(self.tunnels))
+            self.page.run_task(self.add_domain, canonical, selected_tunnel)
+            return
+        self.open_add_dialog(prefill=canonical)
+
+    def open_add_dialog(self, _event=None, *, prefill=''):
+        """Request a named VPN when more than one tunnel is available."""
         default_tunnel = sorted(self.tunnels)[0]
         domain_field = ft.TextField(
-            label='Домен',
-            hint_text='example.com',
+            label='Сайт',
+            value=prefill,
+            hint_text='example.com или https://example.com/page',
             autofocus=True,
             border_color=LINE,
             focused_border_color=ACID,
@@ -846,36 +1444,85 @@ class RouteDesktop:
             label='Туннель',
             value=default_tunnel,
             options=[
-                ft.DropdownOption(key=short, text=f'{short} · {full}')
+                ft.DropdownOption(
+                    key=short,
+                    text=f'{self.tunnel_display_name(short)} · {short} ({full})',
+                )
                 for short, full in sorted(self.tunnels.items())
             ],
         )
 
         async def submit(_event=None):
             try:
-                canonical, _ = add_managed_domain(domain_field.value, tunnel_field.value, source='desktop')
+                canonical = normalize_domain(domain_field.value)
             except ValueError as error:
                 domain_field.error = str(error)
                 self.page.update()
                 return
             self.page.pop_dialog()
-            self.reload_data()
-            row = next(item for item in self.rows if item['domain'] == canonical)
-            await self.set_busy(True, f'Добавляю {canonical}…')
-            summary = await asyncio.to_thread(sync_domains, [row])
-            await self.set_busy(False, f'{canonical}: добавлено {summary.added}, ошибок {summary.errors}')
-            self.reload_data()
+            await self.add_domain(canonical, tunnel_field.value)
 
         dialog = ft.AlertDialog(
             modal=True,
-            title=ft.Text('Добавить домен'),
+            title=ft.Text('Добавить сайт'),
             content=ft.Column(tight=True, width=420, controls=[domain_field, tunnel_field]),
             actions=[
                 ft.Button('Отмена', on_click=lambda _e: self.page.pop_dialog()),
-                ft.Button('Добавить', bgcolor=ACID, color=BG, on_click=submit),
+                ft.Button('Добавить сайт', bgcolor=ACID, color=BG, on_click=submit),
             ],
         )
         self.page.show_dialog(dialog)
+
+    async def add_domain(self, domain, tunnel):
+        """Persist one canonical domain and immediately synchronize its routes."""
+        canonical, _ = add_managed_domain(domain, tunnel, source='desktop')
+        self.quick_domain.value = ''
+        self.quick_domain.error = None
+        self.reload_data()
+        row = next(item for item in self.rows if item['domain'] == canonical)
+        await self.set_busy(True, f'Добавляю {canonical}…')
+        try:
+            summary = await asyncio.to_thread(sync_domains, [row])
+        except Exception as exception:
+            await self.set_busy(False, f'{canonical} сохранён, но маршруты не обновлены')
+            self._show_error(
+                f'{canonical} добавлен в список, но Keenetic не обновлён.\n\n'
+                f'Причина: {exception}'
+            )
+            return
+        await self.set_busy(
+            False,
+            f'{canonical}: добавлено {summary.added}, ошибок {summary.errors}',
+        )
+        self.reload_data()
+
+    async def enable_domain(self, _event=None):
+        """Re-enable a disabled domain and immediately restore its routes."""
+        row = self.selected_row()
+        if row is None:
+            return
+        canonical, _ = add_managed_domain(
+            row['domain'],
+            row['tunnel'],
+            source='desktop',
+        )
+        self.reload_data()
+        updated = next(item for item in self.rows if item['domain'] == canonical)
+        await self.set_busy(True, f'Включаю {canonical}…')
+        try:
+            summary = await asyncio.to_thread(sync_domains, [updated])
+        except Exception as exception:
+            await self.set_busy(False, f'{canonical} включён, но маршруты не обновлены')
+            self._show_error(
+                f'{canonical} снова включён, но Keenetic не обновлён.\n\n'
+                f'Причина: {exception}'
+            )
+            return
+        await self.set_busy(
+            False,
+            f'{canonical}: включён · добавлено {summary.added} · ошибок {summary.errors}',
+        )
+        self.reload_data()
 
     async def release_chrome(self, _event=None):
         """Release only Chrome ownership, preserving every other source."""
@@ -887,7 +1534,13 @@ class RouteDesktop:
             cleanup = {'removed': 0, 'failed': 0}
             if updated is not None and not updated['enabled']:
                 await self.set_busy(True, f'Удаляю временные маршруты {row["domain"]}…')
-                cleanup = await asyncio.to_thread(purge_domain_routes, row['domain'])
+                try:
+                    cleanup = await asyncio.to_thread(purge_domain_routes, row['domain'])
+                except Exception as exception:
+                    await self.set_busy(False, f'Метка Chrome снята, но маршруты не удалены')
+                    self._show_error(str(exception))
+                    self.reload_data()
+                    return
                 await self.set_busy(False)
             self.status_text.value = (
                 f'Chrome снят: {row["domain"]} · удалено маршрутов {cleanup["removed"]}'
@@ -904,7 +1557,13 @@ class RouteDesktop:
             remove_managed_domain(row['domain'])
             self.page.pop_dialog()
             await self.set_busy(True, f'Проверяю маршруты {row["domain"]}…')
-            cleanup = await asyncio.to_thread(purge_domain_routes, row['domain'])
+            try:
+                cleanup = await asyncio.to_thread(purge_domain_routes, row['domain'])
+            except Exception as exception:
+                await self.set_busy(False, f'{row["domain"]} отключён, но маршруты не удалены')
+                self._show_error(str(exception))
+                self.reload_data()
+                return
             await self.set_busy(False)
             self.status_text.value = (
                 f'{row["domain"]}: отключён · удалено маршрутов {cleanup["removed"]}'

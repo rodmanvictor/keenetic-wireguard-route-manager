@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Keenetic · открыть сайт",
-  "version": "0.2.2",
-  "description": "Добавляет текущий сайт в маршруты srv01 и запоминает источник Chrome.",
+  "name": "Пакетыч · открыть сайт",
+  "version": "0.3.0",
+  "description": "Добавляет текущий сайт в маршруты WireGuard и запоминает источник Chrome.",
   "permissions": [
     "activeTab",
     "storage",
@@ -10,7 +10,7 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Открыть сайт через srv01"
+    "default_title": "Открыть сайт через VPN"
   },
   "icons": {
     "16": "icons/icon16.png",

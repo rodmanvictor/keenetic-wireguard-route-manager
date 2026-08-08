@@ -1,47 +1,57 @@
-# Кроссплатформенные сборки
+# Linux-сборка и публикация
 
-## Форматы
+## Публикуемые файлы
 
-Проект публикует два нативных приложения для каждой платформы:
+Версия 0.3.0 публикуется только для Linux x86-64:
 
-- `kwan` — самостоятельный консольный файл, собранный PyInstaller;
-- Keenetic Route Manager — desktop-приложение, собранное Flet/Flutter.
+- `paketych_<version>_amd64.deb` — установочный пакет для Debian, Ubuntu и Linux Mint;
+- `paketych-<version>-linux-x86_64.tar.gz` — переносимый GUI и CLI;
+- `SHA256SUMS` — контрольные суммы обоих файлов.
 
-Архив не требует заранее установленного Python. Установка через `pip` или `pipx` остаётся вариантом для разработчиков и пользователей, которым удобнее обновляться из исходников.
+Windows и macOS намеренно исключены из release workflow до завершения
+тестирования Linux-версии.
 
-SQLite никогда не хранится внутри временного каталога нативной сборки. В
-исходном checkout сохраняется совместимый `var/route-sync.sqlite3`, а
-установленные приложения используют пользовательский каталог данных:
+## Содержимое Debian-пакета
 
-- Linux: `$XDG_DATA_HOME/keenetic-route-manager` или `~/.local/share/keenetic-route-manager`;
-- macOS: `~/Library/Application Support/KeeneticRouteManager`;
-- Windows: `%LOCALAPPDATA%\KeeneticRouteManager`.
+Пакет устанавливает:
 
-## Нативная сборка
+- `/usr/lib/paketych/paketych` — автономный Flet GUI;
+- `/usr/bin/kwan` — автономный CLI;
+- `/usr/bin/paketych` — системный запуск GUI;
+- desktop entry и адаптивные иконки 16–512 px;
+- пользовательский systemd-таймер `paketych-sync.timer`.
 
-Windows, macOS и Linux собираются на собственных GitHub Actions runner. Flet и PyInstaller не используются для кросс-компиляции с одной ОС на другую.
+Python пользователю не нужен. GUI и CLI собираются PyInstaller на Linux; Flet
+desktop runtime включается в GUI-файл. Системный Clang/GTK toolchain для этой
+схемы сборки не требуется.
 
-Workflow `.github/workflows/release.yml` запускается вручную или тегом `v*`:
+Установленное приложение хранит изменяемые данные вне пакета:
 
-1. Устанавливает Python-зависимости.
-2. На Linux устанавливает официальный desktop toolchain: Clang, CMake, Ninja и GTK3 headers.
-3. Запускает offline-тесты.
-4. Собирает standalone CLI через `scripts/build-cli.py`.
-5. Собирает desktop через `flet build`.
-6. Создаёт ZIP `keenetic-route-manager-<platform>.zip`.
-7. Для тега прикладывает три архива к GitHub Release.
+- профиль: `$XDG_CONFIG_HOME/keenetic-route-manager/config.json` или
+  `~/.config/keenetic-route-manager/config.json`;
+- SQLite: `$XDG_DATA_HOME/keenetic-route-manager/route-sync.sqlite3` или
+  `~/.local/share/keenetic-route-manager/route-sync.sqlite3`.
 
-Локальная Linux-сборка:
+## Локальная сборка
 
 ```bash
-sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
-python scripts/build-cli.py
 ./scripts/build-linux.sh
 ```
 
-macOS-приложение должно собираться на macOS, Windows-приложение — на Windows. Подпись Apple Developer ID и Microsoft Authenticode в первой версии не настроена: операционная система может показать предупреждение о неизвестном издателе.
+Скрипт создаёт виртуальное окружение при необходимости, собирает два
+исполняемых файла, формирует `.deb` и переносимый архив, затем записывает
+SHA-256.
 
-Первая macOS-сборка выпускается для x64 на официальном runner
-`macos-26-intel`. На Apple Silicon она запускается через Rosetta 2; отдельный
-нативный arm64-архив можно добавить после появления согласованного ARM-набора
-Python/CFFI wheels в используемом Flet pipeline.
+Для поэтапной диагностики:
+
+```bash
+.venv-build/bin/python scripts/build-cli.py
+.venv-build/bin/python scripts/build-desktop.py
+.venv-build/bin/python scripts/package-linux.py
+```
+
+## GitHub Actions
+
+`.github/workflows/release.yml` запускается вручную или тегом `v*` на
+`ubuntu-latest`. Workflow выполняет offline-тесты, собирает Linux x86-64,
+проверяет наличие артефактов и прикладывает их к GitHub Release.

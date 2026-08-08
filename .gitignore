@@ -7,3 +7,10 @@ build/
 dist/
 *.spec
 var/
+tmp/
+/chrome-ext
+/assets/branding/concepts/
+/assets/branding/paketych-face-medium-v*.png
+/assets/branding/paketych-icon-v1.png
+/assets/branding/paketych-mascot-v1.png
+/assets/branding/pixel-mascot-preview.png

@@ -54,7 +54,7 @@ TUNNEL_FULL_NAMES = {}
 
 
 def _profile_from_args(args):
-    """Merge non-secret CLI overrides into the saved default profile."""
+    """Merge CLI connection overrides into the saved default profile."""
     profile = load_profile()
     updates = {}
     if getattr(args, 'host', None):
@@ -68,8 +68,8 @@ def _profile_from_args(args):
     return replace(profile, **updates).validate()
 
 
-def _password_from_args(args):
-    """Read a router password from ENV or a hidden interactive prompt."""
+def _password_from_args(args, profile):
+    """Read a router password from ENV, the saved profile, or a hidden prompt."""
     variable = getattr(args, 'password_env', None)
     if variable:
         password = os.getenv(variable, '')
@@ -79,6 +79,8 @@ def _password_from_args(args):
     password = environment_password()
     if password:
         return password
+    if profile.password:
+        return profile.password
     if not sys.stdin.isatty():
         raise RouterBootstrapError(
             'Нужен интерактивный ввод пароля или --password-env ИМЯ_ПЕРЕМЕННОЙ'
@@ -92,9 +94,13 @@ def ensure_connection(args, *, auto_enable_ssh=True, save=True):
     if existing is not None:
         return existing
     profile = _profile_from_args(args)
-    password = _password_from_args(args)
+    password = _password_from_args(args, profile)
     report = bootstrap_router(profile, password, auto_enable_ssh=auto_enable_ssh)
-    selected_profile = replace(profile, preferred_transport=report.transport or 'auto')
+    selected_profile = replace(
+        profile,
+        preferred_transport=report.transport or 'auto',
+        password=password,
+    )
     if save:
         save_profile(selected_profile)
     args._bootstrap_report = report
@@ -109,7 +115,10 @@ def print_report(report):
     for step in report.steps:
         print(f'  {icons.get(step.status, "·")} {step.detail}')
     if report.tunnels:
-        tunnels = ', '.join(f'{short} ({full})' for short, full in report.tunnels.items())
+        tunnels = ', '.join(
+            f'{report.tunnel_labels.get(short, full)} — {short} ({full})'
+            for short, full in report.tunnels.items()
+        )
         print(f'  WireGuard: {tunnels}')
     else:
         print('  WireGuard-туннели пока не настроены.')
@@ -533,7 +542,7 @@ def cmd_tunnel_import(args):
 def main():
     """Parse command-line arguments and run one isolated user operation."""
     parser = argparse.ArgumentParser(
-        description='Keenetic Route Manager — домены и маршруты через WireGuard',
+        description='Пакетыч — выбранные сайты через WireGuard',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog='''
 Примеры использования:

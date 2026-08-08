@@ -379,3 +379,64 @@ def import_wireguard_profile(
             raise
         raise WireGuardImportError(f'Импорт {selected_interface} прерван: {type(error).__name__}') from error
     return TunnelImportResult(selected_interface, True, len(commands), warnings, tuple(preview))
+
+
+def _run_management_commands(client, commands):
+    """Execute non-secret interface management commands with error checks."""
+    for command in commands:
+        output = client.command(command)
+        if 'error' in output.lower():
+            raise WireGuardImportError(f'KeeneticOS отклонил команду «{command}»')
+
+
+def rename_wireguard_tunnel(client, interface, description):
+    """Rename an existing WireGuard interface and save KeeneticOS config.
+
+    Args:
+        client: Authenticated Keenetic command client.
+        interface: Existing technical id such as ``Wireguard1``.
+        description: New user-facing name.
+
+    Returns:
+        Sanitized name stored on the router.
+    """
+    if not SAFE_INTERFACE_PATTERN.fullmatch(str(interface)):
+        raise WireGuardConfigError('Некорректный интерфейс WireGuard')
+    cleaned = _safe_description(description)
+    _run_management_commands(
+        client,
+        [
+            f'interface {interface}',
+            f'description "{cleaned}"',
+            'exit',
+            'system configuration save',
+        ],
+    )
+    return cleaned
+
+
+def set_wireguard_tunnel_enabled(client, interface, enabled):
+    """Bring an existing WireGuard interface up or down and persist it."""
+    if not SAFE_INTERFACE_PATTERN.fullmatch(str(interface)):
+        raise WireGuardConfigError('Некорректный интерфейс WireGuard')
+    action = 'up' if enabled else 'down'
+    _run_management_commands(
+        client,
+        [
+            f'interface {interface}',
+            action,
+            'exit',
+            'system configuration save',
+        ],
+    )
+    return action
+
+
+def delete_wireguard_tunnel(client, interface):
+    """Delete one explicitly selected WireGuard interface and save config."""
+    if not SAFE_INTERFACE_PATTERN.fullmatch(str(interface)):
+        raise WireGuardConfigError('Некорректный интерфейс WireGuard')
+    _run_management_commands(
+        client,
+        [f'no interface {interface}', 'system configuration save'],
+    )

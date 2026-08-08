@@ -11,6 +11,7 @@ import logging
 import re
 import socket
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
 
@@ -410,28 +411,100 @@ def parse_wireguard_routes_output(output):
     return routes
 
 
-def discover_wireguard_tunnels(keenetic):
-    """Discover numbered WireGuard interfaces from ``show interface`` output."""
-    tunnels_short = {}  # wg0 -> Wireguard0
-    tunnels_full = {}   # Wireguard0 -> wg0
+@dataclass(frozen=True)
+class WireGuardTunnel:
+    """Human and technical identities of one Keenetic WireGuard interface.
 
+    Attributes:
+        short_name: Compact route identifier such as ``wg1``.
+        interface: KeeneticOS identifier such as ``Wireguard1``.
+        description: User-assigned name from KeeneticOS, possibly empty.
+        status: Live interface state such as ``up`` or ``down``.
+    """
+
+    short_name: str
+    interface: str
+    description: str = ''
+    status: str = 'unknown'
+
+    @property
+    def display_name(self):
+        """Return the user-assigned name, falling back to the interface id."""
+        return self.description or self.interface
+
+
+def parse_wireguard_tunnel_details(output):
+    """Parse interface identifiers and user descriptions from KeeneticOS.
+
+    Args:
+        output: Text returned by ``show interface``.
+
+    Returns:
+        Mapping of short identifiers to :class:`WireGuardTunnel` records.
+        Every discovered numbered interface is retained even when it has no
+        description.
+    """
+    descriptions = {}
+    statuses = {}
+    current_interface = None
+    identity = re.compile(r'^id:\s*(\S+)\s*$', re.IGNORECASE)
+    any_interface = re.compile(r'\bWireguard(\d+)\b', re.IGNORECASE)
+
+    for raw_line in str(output).splitlines():
+        line = raw_line.strip()
+        match = identity.match(line)
+        if match:
+            interface_match = re.fullmatch(r'Wireguard(\d+)', match.group(1), re.IGNORECASE)
+            current_interface = (
+                f'Wireguard{interface_match.group(1)}' if interface_match else None
+            )
+            if current_interface:
+                descriptions.setdefault(current_interface, '')
+                statuses.setdefault(current_interface, 'unknown')
+            continue
+        if current_interface and line.lower().startswith('description:'):
+            description = line.split(':', 1)[1].strip()
+            if description:
+                descriptions[current_interface] = description
+            continue
+        if current_interface and ': ' in line:
+            key, value = line.split(': ', 1)
+            if key.lower() in {'status', 'state', 'link'} and value.strip().lower() in {'up', 'down'}:
+                if statuses[current_interface] == 'unknown' or key.lower() == 'status':
+                    statuses[current_interface] = value.strip().lower()
+
+    # Older KeeneticOS builds may omit the structured ``id`` line.  Preserve
+    # the previous discovery behavior, but do not guess a human label.
+    for match in any_interface.finditer(str(output)):
+        interface = f'Wireguard{match.group(1)}'
+        descriptions.setdefault(interface, '')
+        statuses.setdefault(interface, 'unknown')
+
+    details = {}
+    for interface, description in descriptions.items():
+        short = interface.lower().replace('wireguard', 'wg', 1)
+        details[short] = WireGuardTunnel(
+            short,
+            interface,
+            description,
+            statuses.get(interface, 'unknown'),
+        )
+    return dict(sorted(details.items()))
+
+
+def discover_wireguard_tunnel_details(keenetic):
+    """Read live WireGuard identities, including names assigned by the user."""
     try:
-        output = keenetic.command('show interface')
-        for line in output.split('\n'):
-            line = line.strip()
-            if 'Wireguard' in line:
-                # Извлекаем имя интерфейса
-                parts = line.split()
-                for part in parts:
-                    if re.fullmatch(r'Wireguard\d+', part, re.IGNORECASE):
-                        short_name = part.lower().replace('wireguard', 'wg')
-                        full_name = f'Wireguard{part[9:]}'
-                        tunnels_short[short_name] = full_name
-                        tunnels_full[full_name] = short_name
-                        break
+        return parse_wireguard_tunnel_details(keenetic.command('show interface'))
     except Exception:
-        pass
+        return {}
 
+
+def discover_wireguard_tunnels(keenetic):
+    """Discover compatible short and full WireGuard interface mappings."""
+    details = discover_wireguard_tunnel_details(keenetic)
+    tunnels_short = {short: tunnel.interface for short, tunnel in details.items()}
+    tunnels_full = {tunnel.interface: short for short, tunnel in details.items()}
     return tunnels_short, tunnels_full
 
 

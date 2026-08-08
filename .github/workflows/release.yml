@@ -15,31 +15,13 @@ jobs:
       PYTHONUTF8: "1"
       PYTHONIOENCODING: utf-8
       FLET_CLI_NO_RICH_OUTPUT: "1"
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            platform: linux
-            flet_target: linux
-          - os: windows-latest
-            platform: windows
-            flet_target: windows
-          - os: macos-26-intel
-            platform: macos
-            flet_target: macos
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
-      - name: Install Linux desktop toolchain
-        if: runner.os == 'Linux'
-        run: >-
-          sudo apt-get update && sudo apt-get install -y
-          clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
       - name: Install build dependencies
         run: python -m pip install -r requirements-dev.txt -e .
       - name: Run tests
@@ -49,24 +31,16 @@ jobs:
       - name: Build standalone CLI
         run: python scripts/build-cli.py
       - name: Build desktop application
-        run: >-
-          flet build ${{ matrix.flet_target }} .
-          --module-name desktop_app
-          --project keenetic-router
-          --artifact keenetic-router
-          --product "Keenetic Route Manager"
-          --org ru.rodman
-          --description "Selective WireGuard routing for KeeneticOS"
-          --output dist/desktop
-          --python-version 3.12
-          --no-rich-output
-          --yes
+        run: python scripts/build-desktop.py
       - name: Archive native applications
-        run: python scripts/package-release.py --platform ${{ matrix.platform }}
+        run: python scripts/package-linux.py
       - uses: actions/upload-artifact@v4
         with:
-          name: keenetic-route-manager-${{ matrix.platform }}
-          path: dist/release/*.zip
+          name: paketych-linux
+          path: |
+            dist/release/*.deb
+            dist/release/*.tar.gz
+            dist/release/SHA256SUMS
           if-no-files-found: error
 
   release:
@@ -80,4 +54,4 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
-          files: artifacts/**/*.zip
+          files: artifacts/**/*

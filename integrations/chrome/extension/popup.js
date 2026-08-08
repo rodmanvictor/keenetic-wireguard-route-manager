@@ -33,7 +33,7 @@ function setBusy(busy) {
   button.disabled = busy || !domain;
   document.getElementById('button-label').textContent = busy
     ? 'Добавляю маршруты…'
-    : 'Добавить через srv01';
+    : 'Добавить через VPN';
 }
 
 function showDetails(response) {

@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""Build a native standalone ``kwan`` command for the current platform.
-
-The script deliberately performs a native build: Windows, macOS, and Linux
-executables are produced on their corresponding GitHub Actions runners.
-"""
+"""Build the standalone Linux ``kwan`` command used by release packages."""
 
 from pathlib import Path
 import subprocess
