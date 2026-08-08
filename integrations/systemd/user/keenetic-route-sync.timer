@@ -1,0 +1,10 @@
+[Unit]
+Description=Refresh managed Keenetic service routes every six hours
+
+[Timer]
+OnCalendar=*-*-* 00,06,12,18:00:00
+Persistent=true
+Unit=keenetic-route-sync.service
+
+[Install]
+WantedBy=timers.target

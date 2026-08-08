@@ -1,0 +1,8 @@
+{
+  "name": "keenetic-wireguard-route-manager",
+  "private": true,
+  "scripts": {
+    "docs:check": "node scripts/check-docs.mjs",
+    "test:python": "PYTHONPATH=src .venv-build/bin/python -m unittest discover -s tests -v"
+  }
+}

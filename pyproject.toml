@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "keenetic-wireguard-route-manager"
+version = "0.2.0"
+description = "Selective WireGuard route management for KeeneticOS"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [
+    { name = "Viktor Rodin" },
+]
+keywords = ["keenetic", "wireguard", "routing", "vpn"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Environment :: MacOS X",
+    "Environment :: Win32 (MS Windows)",
+    "Environment :: X11 Applications",
+    "Programming Language :: Python :: 3",
+    "Topic :: System :: Networking",
+]
+dependencies = [
+    "flet[desktop]>=0.84,<0.87",
+    "paramiko>=4.0.0",
+    "Pillow>=11,<13",
+    "python-dotenv>=1.0.0",
+    "zxing-cpp>=3.1,<4",
+]
+
+[project.urls]
+Documentation = "https://github.com/rodmanvictor/keenetic-wireguard-route-manager"
+Issues = "https://github.com/rodmanvictor/keenetic-wireguard-route-manager/issues"
+Source = "https://github.com/rodmanvictor/keenetic-wireguard-route-manager"
+
+[project.scripts]
+kwtui = "keenetic_router.apps.tui:main"
+kwan = "keenetic_router.apps.cli:main"
+kwimport = "keenetic_router.apps.importer:main"
+keenetic-desktop = "keenetic_router.apps.desktop:run"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.flet.app]
+path = "src"
+module = "desktop_app"

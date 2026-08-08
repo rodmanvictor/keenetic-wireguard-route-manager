@@ -1,0 +1,9 @@
+[Unit]
+Description=Synchronize managed Keenetic service routes
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=__PROJECT_ROOT__
+ExecStart=__PROJECT_ROOT__/bin/kwan sync

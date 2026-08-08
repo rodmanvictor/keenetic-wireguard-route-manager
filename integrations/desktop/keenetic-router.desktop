@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Keenetic Routes
+Name[ru]=Маршруты Keenetic
+Comment=Manage domains routed through WireGuard
+Comment[ru]=Домены и маршруты через WireGuard
+Exec=keenetic-desktop
+Icon=keenetic-router
+Terminal=false
+Categories=Network;
+StartupNotify=true
+StartupWMClass=Keenetic Routes

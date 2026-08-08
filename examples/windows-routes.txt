@@ -1,0 +1,7 @@
+# Пример файла с маршрутами в формате Windows route
+# Используйте: python3 keenetic-import-routes.py routes.txt --tunnel wg1
+
+route add 160.79.104.0 mask 255.255.254.0 0.0.0.0
+route add 160.79.106.0 mask 255.255.255.0 0.0.0.0
+route add 45.64.184.0 mask 255.255.255.0 0.0.0.0
+route add 103.4.96.0 mask 255.255.240.0 0.0.0.0

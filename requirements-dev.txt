@@ -1,0 +1,2 @@
+flet[cli]>=0.84,<0.87
+pyinstaller>=6.22,<7

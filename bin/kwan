@@ -1,0 +1,6 @@
+#!/bin/bash
+# Keenetic CLI launcher
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+export PYTHONPATH="$PROJECT_DIR/src${PYTHONPATH:+:$PYTHONPATH}"
+exec "$PROJECT_DIR/.venv-build/bin/python" -m keenetic_router.apps.cli "$@"

@@ -1,0 +1,9 @@
+{
+  "name": "com.keenetic.router.host",
+  "description": "Native host for adding the active Chrome domain through Keenetic WireGuard",
+  "path": "__HOST_PATH__",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://__EXTENSION_ID__/"
+  ]
+}
