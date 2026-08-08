@@ -32,7 +32,7 @@ def _require_builds() -> tuple[Path, Path]:
         FileNotFoundError: If PyInstaller has not produced either executable.
     """
     desktop = DIST / 'desktop' / 'PackeTech.exe'
-    cli = DIST / 'cli' / 'kwan.exe'
+    cli = DIST / 'cli' / 'PackeTech-CLI.exe'
     missing = [str(path.relative_to(ROOT)) for path in (desktop, cli) if not path.is_file()]
     if missing:
         raise FileNotFoundError(f'Сначала соберите: {", ".join(missing)}')
@@ -55,13 +55,14 @@ def build_archive(desktop: Path, cli: Path, version: str) -> Path:
         shutil.rmtree(staging.parent)
     staging.mkdir(parents=True)
     shutil.copy2(desktop, staging / 'PackeTech.exe')
-    shutil.copy2(cli, staging / 'kwan.exe')
+    shutil.copy2(cli, staging / 'PackeTech-CLI.exe')
     (staging / 'ПРОЧТИ МЕНЯ.txt').write_text(
         'PACKETECH ДЛЯ WINDOWS 10 И 11\n\n'
         '1. Запустите «PackeTech.exe».\n'
         '2. Если Windows покажет SmartScreen, нажмите «Подробнее» → «Выполнить в любом случае».\n'
         '3. Введите адрес, логин и пароль администратора Keenetic.\n\n'
-        'Не переносите один EXE отдельно: kwan.exe нужен для обновления маршрутов каждые 6 часов.\n'
+        'Не переносите один EXE отдельно: PackeTech-CLI.exe обновляет маршруты каждые 6 часов.\n'
+        'Терминал: PackeTech-CLI.exe --help или PackeTech-CLI.exe tui.\n'
         'Настройки: %APPDATA%\\KeeneticRouteManager\\config.json\n'
         'База: %LOCALAPPDATA%\\KeeneticRouteManager\\route-sync.sqlite3\n',
         encoding='utf-8-sig',

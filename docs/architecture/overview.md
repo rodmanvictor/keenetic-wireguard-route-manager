@@ -7,8 +7,9 @@ keenetic-router/
 ├── src/keenetic_router/       Python-пакет
 │   ├── core/router.py          подключение к KeeneticOS и операции с маршрутами
 │   └── apps/                  пользовательские приложения
-│       ├── tui.py             терминальное меню kwtui
-│       ├── cli.py             команда kwan
+│       ├── tui.py             терминальное меню packetech tui
+│       ├── cli.py             команды packetech
+│       ├── launcher.py        выбор GUI, CLI или TUI
 │       ├── importer.py        команда kwimport
 │       └── desktop.py         desktop-интерфейс
 ├── integrations/chrome/       Chrome-расширение и Native Messaging host
@@ -31,10 +32,11 @@ keenetic-router/
 
 ## Интерфейсы
 
-- `kwtui` запускает интерактивное терминальное меню.
-- `kwan` запускает CLI для добавления, просмотра и удаления маршрутов.
+- `packetech` без аргументов запускает графическое приложение.
+- `packetech status`, `add`, `sync` и другие подкоманды запускают CLI.
+- `packetech tui` запускает интерактивное терминальное меню.
+- `packetech-cli` предоставляет CLI/TUI отдельно от графической части.
 - `kwimport` импортирует файлы в формате Windows `route add`.
-- `keenetic-desktop` — desktop-интерфейс с первым подключением, компонентами, WireGuard-импортом и доменами.
 
 Запускаторы в `bin/` сохраняют совместимость с привычными командами и передают выполнение в Python-пакет из `src/`.
 

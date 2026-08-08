@@ -30,29 +30,47 @@ def user_systemd_directory() -> Path:
     return root / 'systemd' / 'user'
 
 
-def find_kwan_executable() -> Path | None:
-    """Find the standalone synchronizer beside a package or source checkout."""
-    override = os.getenv('PAKETYCH_KWAN_PATH')
+def find_cli_executable() -> Path | None:
+    """Find the branded synchronizer beside a package or source checkout.
+
+    The old ``kwan`` executable and environment variable remain fallbacks so
+    existing installations keep their six-hour scheduler after an upgrade.
+    """
+    override = os.getenv('PACKETECH_CLI_PATH') or os.getenv('PAKETYCH_KWAN_PATH')
     if override:
         candidate = Path(override).expanduser()
         return candidate if candidate.is_file() else None
-    installed = shutil.which('kwan')
-    if installed:
-        return Path(installed)
-    sibling_name = 'kwan.exe' if os.name == 'nt' else 'kwan'
-    sibling = Path(sys.executable).resolve().with_name(sibling_name)
-    if sibling.is_file():
-        return sibling
+    for name in ('packetech-cli', 'kwan'):
+        installed = shutil.which(name)
+        if installed:
+            return Path(installed)
+    sibling_names = (
+        ('PackeTech-CLI.exe', 'kwan.exe')
+        if os.name == 'nt'
+        else ('packetech-cli', 'kwan')
+    )
+    for sibling_name in sibling_names:
+        sibling = Path(sys.executable).resolve().with_name(sibling_name)
+        if sibling.is_file():
+            return sibling
     project = Path(__file__).resolve().parents[3]
-    source_launcher = project / 'bin' / 'kwan'
-    return source_launcher if source_launcher.is_file() else None
+    for source_name in ('packetech-cli', 'kwan'):
+        source_launcher = project / 'bin' / source_name
+        if source_launcher.is_file():
+            return source_launcher
+    return None
+
+
+def find_kwan_executable() -> Path | None:
+    """Return :func:`find_cli_executable` under the legacy public name."""
+    return find_cli_executable()
 
 
 def write_user_units(cli_path: Path, directory: Path | None = None) -> tuple[Path, Path]:
     """Write idempotent systemd units pointing at one absolute CLI executable.
 
     Args:
-        cli_path: Existing standalone ``kwan`` executable or source launcher.
+        cli_path: Existing standalone ``packetech-cli`` or legacy launcher.
         directory: Optional test or custom unit directory.
 
     Returns:
@@ -104,7 +122,7 @@ def enable_windows_task(cli_path: Path) -> TimerSetupResult:
     """Create the current user's six-hour Windows Scheduled Task.
 
     Args:
-        cli_path: Existing standalone ``kwan.exe`` executable.
+        cli_path: Existing standalone ``PackeTech-CLI.exe`` executable.
 
     Returns:
         A non-raising result with the Task Scheduler outcome.
@@ -164,7 +182,7 @@ def write_macos_launch_agent(cli_path: Path, directory: Path | None = None) -> P
     """Write a six-hour macOS LaunchAgent for the standalone synchronizer.
 
     Args:
-        cli_path: Existing native ``kwan`` executable embedded in the app.
+        cli_path: Existing native ``packetech-cli`` embedded in the app.
         directory: Optional test or custom LaunchAgents directory.
 
     Returns:
@@ -197,7 +215,7 @@ def enable_macos_launch_agent(cli_path: Path) -> TimerSetupResult:
     """Install and bootstrap the current user's macOS LaunchAgent.
 
     Args:
-        cli_path: Existing native ``kwan`` executable embedded in PackeTech.
+        cli_path: Existing native ``packetech-cli`` embedded in PackeTech.
 
     Returns:
         A non-raising result with the ``launchctl`` outcome.
@@ -234,7 +252,7 @@ def enable_background_sync() -> TimerSetupResult:
         A non-raising result. Desktop onboarding remains usable without a
         supported scheduler or without a discoverable standalone CLI.
     """
-    cli = find_kwan_executable()
+    cli = find_cli_executable()
     if cli is None:
         return TimerSetupResult(False, 'CLI для фонового обновления не найден')
     if os.name == 'nt':

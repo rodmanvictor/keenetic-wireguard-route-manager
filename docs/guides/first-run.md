@@ -3,21 +3,21 @@
 ## CLI
 
 ```bash
-kwan setup
+packetech setup
 ```
 
 Введите пароль администратора Keenetic. Программа сохранит адрес, логин и пароль
 в пользовательском JSON с правами `600`. Для другого адреса:
 
 ```bash
-kwan --host 192.168.50.1 --user admin setup
+packetech --host 192.168.50.1 --user admin setup
 ```
 
 Для скрипта пароль можно передать только через переменную окружения:
 
 ```bash
 export MY_KEENETIC_PASSWORD='...'
-kwan --password-env MY_KEENETIC_PASSWORD status
+packetech --password-env MY_KEENETIC_PASSWORD status
 ```
 
 Не помещайте пароль прямо в команду или shell history.
@@ -27,29 +27,29 @@ kwan --password-env MY_KEENETIC_PASSWORD status
 Обычный `setup` лишь показывает состояние. Если SSH или WireGuard доступны для модели, но не установлены:
 
 ```bash
-kwan setup --install-components --confirm-reboot
+packetech setup --install-components --confirm-reboot
 ```
 
-Во время `components commit` соединение может оборваться. Дождитесь загрузки роутера и снова выполните `kwan setup`.
+Во время `components commit` соединение может оборваться. Дождитесь загрузки роутера и снова выполните `packetech setup`.
 
 ## Импорт конфигурации
 
 Проверка без изменения роутера:
 
 ```bash
-kwan tunnel import --file vpn.conf --show-plan
+packetech tunnel import --file vpn.conf --show-plan
 ```
 
 В плане закрытый и preshared-ключи заменены на `***`. Применение:
 
 ```bash
-kwan tunnel import --file vpn.conf --name srv01 --via ISP --confirm
+packetech tunnel import --file vpn.conf --name "Home VPN" --via ISP --confirm
 ```
 
 Для QR:
 
 ```bash
-kwan tunnel import --qr vpn.png --name srv01 --confirm
+packetech tunnel import --qr vpn.png --name "Home VPN" --confirm
 ```
 
 Поддерживается стандартный формат WireGuard с `[Interface]` и одним или несколькими `[Peer]`. Выбирается первый IPv4 и первый IPv6 `Address`; все IPv4/IPv6 `AllowedIPs` переносятся в KeeneticOS. DNS и MTU пока не применяются. Существующий интерфейс не перезаписывается: по умолчанию выбирается первый свободный `WireguardN`. При ошибке частично созданный новый интерфейс удаляется.
@@ -57,11 +57,11 @@ kwan tunnel import --qr vpn.png --name srv01 --confirm
 После импорта проверьте туннели и добавьте домен:
 
 ```bash
-kwan status
-kwan add example.com --tunnel wg2
+packetech status
+packetech add example.com --tunnel wg2
 ```
 
-## Desktop
+## Графический режим
 
 На первом экране введите адрес, логин и пароль. После подключения доступны:
 

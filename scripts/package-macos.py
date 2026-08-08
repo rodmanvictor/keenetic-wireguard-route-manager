@@ -44,7 +44,7 @@ def _require_builds() -> tuple[Path, Path]:
         FileNotFoundError: If Flet or PyInstaller has not produced either build.
     """
     application = DIST / 'desktop' / 'PackeTech.app'
-    cli = DIST / 'cli' / 'kwan'
+    cli = DIST / 'cli' / 'packetech-cli'
     missing = [str(path.relative_to(ROOT)) for path in (application, cli) if not path.exists()]
     if missing:
         raise FileNotFoundError(f'Сначала соберите: {", ".join(missing)}')
@@ -71,7 +71,7 @@ def build_dmg(application: Path, cli: Path, version: str, architecture: str) -> 
 
     packaged_app = staging / 'PackeTech.app'
     shutil.copytree(application, packaged_app, symlinks=True)
-    embedded_cli = packaged_app / 'Contents' / 'MacOS' / 'kwan'
+    embedded_cli = packaged_app / 'Contents' / 'MacOS' / 'packetech-cli'
     shutil.copy2(cli, embedded_cli)
     embedded_cli.chmod(0o755)
     (staging / 'Applications').symlink_to('/Applications')

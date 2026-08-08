@@ -604,7 +604,7 @@ class RouteDesktop:
         field = ft.TextField(
             label='Название VPN',
             value=self.tunnel_display_name(short),
-            hint_text='Например: Махтеев или srv01',
+            hint_text='Например: Домашний VPN',
             autofocus=True,
         )
 
@@ -815,7 +815,7 @@ class RouteDesktop:
         name = ft.TextField(
             label='Название VPN в Keenetic',
             value=suggested,
-            hint_text='Например: Махтеев или srv01',
+            hint_text='Например: Домашний VPN',
             helper_text='Это имя будет показано при выборе маршрута для сайта.',
         )
         via = ft.TextField(label='Выход к VPN-серверу', value='ISP', hint_text='ISP')

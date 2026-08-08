@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
 authors = [
-    { name = "Viktor Rodin" },
+    { name = "Victor Rodin" },
 ]
 keywords = ["keenetic", "wireguard", "routing", "vpn"]
 classifiers = [
@@ -40,8 +40,9 @@ Issues = "https://github.com/rodmanvictor/packetech/issues"
 Source = "https://github.com/rodmanvictor/packetech"
 
 [project.scripts]
-packetech = "keenetic_router.apps.desktop:run"
-paketych = "keenetic_router.apps.desktop:run"
+packetech = "keenetic_router.apps.launcher:main"
+packetech-cli = "keenetic_router.apps.launcher:terminal_main"
+paketych = "keenetic_router.apps.launcher:main"
 kwtui = "keenetic_router.apps.tui:main"
 kwan = "keenetic_router.apps.cli:main"
 kwimport = "keenetic_router.apps.importer:main"

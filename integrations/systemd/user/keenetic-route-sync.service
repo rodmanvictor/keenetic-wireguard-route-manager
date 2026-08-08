@@ -6,4 +6,4 @@ After=network-online.target
 [Service]
 Type=oneshot
 WorkingDirectory=__PROJECT_ROOT__
-ExecStart=__PROJECT_ROOT__/bin/kwan sync
+ExecStart=__PROJECT_ROOT__/bin/packetech-cli sync

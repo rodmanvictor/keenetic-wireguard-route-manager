@@ -38,7 +38,7 @@ def _version() -> str:
 def _require_builds() -> tuple[Path, Path]:
     """Return desktop and CLI executables or raise a clear build error."""
     desktop = DIST / 'desktop' / 'packetech'
-    cli = DIST / 'cli' / 'kwan'
+    cli = DIST / 'cli' / 'packetech-cli'
     missing = [str(path.relative_to(ROOT)) for path in (desktop, cli) if not path.is_file()]
     if missing:
         raise FileNotFoundError(f'Сначала соберите: {", ".join(missing)}')
@@ -60,6 +60,17 @@ StartupWMClass=PackeTech
 '''
 
 
+def _unified_launcher(gui_relative_path: str) -> str:
+    """Return a shell dispatcher for one build-specific GUI location."""
+    return f'''#!/bin/sh
+if [ "$#" -eq 0 ] || [ "$1" = "desktop" ] || [ "$1" = "gui" ]; then
+    [ "$#" -eq 0 ] || shift
+    exec "$(dirname "$0")/{gui_relative_path}" "$@"
+fi
+PACKETECH_PROG_NAME=packetech exec "$(dirname "$0")/packetech-cli" "$@"
+'''
+
+
 def build_deb(desktop: Path, cli: Path, version: str) -> Path:
     """Build a root-owned Debian package and return its final path."""
     staging = ROOT / 'build' / 'debian' / 'packetech'
@@ -72,7 +83,7 @@ Version: {version}
 Section: net
 Priority: optional
 Architecture: amd64
-Maintainer: Viktor Rodin
+Maintainer: Victor Rodin
 Depends: libgtk-3-0 | libgtk-3-0t64, libsecret-1-0
 Conflicts: paketych
 Replaces: paketych
@@ -84,17 +95,22 @@ Description: Выбранные сайты через WireGuard на Keenetic
 '''
     (control / 'control').write_text(control_text, encoding='utf-8')
 
-    _copy(desktop, staging / 'usr/lib/packetech/packetech', 0o755)
-    _copy(cli, staging / 'usr/bin/kwan', 0o755)
-    link = staging / 'usr/bin/packetech'
-    link.parent.mkdir(parents=True, exist_ok=True)
-    link.symlink_to('../lib/packetech/packetech')
+    _copy(desktop, staging / 'usr/lib/packetech/packetech-gui', 0o755)
+    _copy(cli, staging / 'usr/bin/packetech-cli', 0o755)
+    legacy_cli = staging / 'usr/bin/kwan'
+    legacy_cli.symlink_to('packetech-cli')
+    launcher = staging / 'usr/bin/packetech'
+    launcher.write_text(
+        _unified_launcher('../lib/packetech/packetech-gui'),
+        encoding='utf-8',
+    )
+    launcher.chmod(0o755)
     compatibility_link = staging / 'usr/bin/paketych'
     compatibility_link.symlink_to('packetech')
-    launcher = staging / 'usr/share/applications/packetech.desktop'
-    launcher.parent.mkdir(parents=True, exist_ok=True)
-    launcher.write_text(_desktop_entry(), encoding='utf-8')
-    launcher.chmod(0o644)
+    desktop_entry = staging / 'usr/share/applications/packetech.desktop'
+    desktop_entry.parent.mkdir(parents=True, exist_ok=True)
+    desktop_entry.write_text(_desktop_entry(), encoding='utf-8')
+    desktop_entry.chmod(0o644)
 
     for icon in sorted((ROOT / 'assets/icons/hicolor').glob('*x*/apps/paketych.png')):
         relative = icon.relative_to(ROOT / 'assets/icons/hicolor')
@@ -127,12 +143,19 @@ def build_portable(desktop: Path, cli: Path, version: str) -> Path:
     if staging.parent.exists():
         shutil.rmtree(staging.parent)
     staging.mkdir(parents=True)
-    _copy(desktop, staging / 'packetech', 0o755)
-    _copy(cli, staging / 'kwan', 0o755)
+    _copy(desktop, staging / 'lib/packetech/packetech-gui', 0o755)
+    _copy(cli, staging / 'packetech-cli', 0o755)
+    launcher = staging / 'packetech'
+    launcher.write_text(
+        _unified_launcher('lib/packetech/packetech-gui'),
+        encoding='utf-8',
+    )
+    launcher.chmod(0o755)
     (staging / 'README.txt').write_text(
         'PackeTech для Linux x86-64\n\n'
         'GUI: дважды щёлкните packetech или запустите ./packetech\n'
-        'CLI: ./kwan --help\n\n'
+        'CLI: ./packetech --help\n'
+        'TUI: ./packetech tui\n\n'
         'Настройки: ~/.config/keenetic-route-manager/config.json\n'
         'База: ~/.local/share/keenetic-route-manager/route-sync.sqlite3\n',
         encoding='utf-8',

@@ -17,9 +17,9 @@
 
 Debian-пакет устанавливает:
 
-- `/usr/lib/packetech/packetech` — автономный Flet GUI;
-- `/usr/bin/kwan` — автономный CLI;
-- `/usr/bin/packetech` — системный запуск GUI;
+- `/usr/lib/packetech/packetech-gui` — автономный Flet GUI;
+- `/usr/bin/packetech-cli` — автономный CLI и исполнитель синхронизации;
+- `/usr/bin/packetech` — единый запуск GUI, CLI и TUI;
 - `/usr/bin/paketych` — совместимый псевдоним старого имени;
 - desktop entry и адаптивные иконки 16–512 px;
 - пользовательский systemd-таймер `paketych-sync.timer`.
@@ -32,12 +32,12 @@ desktop runtime включается в GUI-файл.
 Windows-сборка создается на нативном `windows-latest`. В архиве лежат:
 
 - `PackeTech.exe` — автономный оконный интерфейс;
-- `kwan.exe` — автономный CLI и исполнитель фоновой синхронизации;
+- `PackeTech-CLI.exe` — автономный CLI и исполнитель фоновой синхронизации;
 - `ПРОЧТИ МЕНЯ.txt` — короткий сценарий запуска.
 
 После первого успешного подключения приложение создает задачу
 `PackeTech route sync` с интервалом шесть часов. Папку нельзя переносить по
-одному файлу: задача ссылается на абсолютный путь к `kwan.exe`.
+одному файлу: задача ссылается на абсолютный путь к `PackeTech-CLI.exe`.
 
 Windows-файлы версии 0.3.0 не подписаны Authenticode. SmartScreen может
 предупредить о неизвестном издателе.
@@ -47,12 +47,12 @@ Windows-файлы версии 0.3.0 не подписаны Authenticode. Smar
 Две macOS-сборки создаются на нативных GitHub-hosted runners: ARM64 на
 `macos-26`, Intel x86-64 на `macos-26-intel`. Поддерживаемая команда
 `flet build macos` формирует `PackeTech.app` для целевой архитектуры, а
-`scripts/package-macos.py` добавляет внутрь standalone `kwan`, ставит ad-hoc
+`scripts/package-macos.py` добавляет внутрь standalone `packetech-cli`, ставит ad-hoc
 подпись и собирает DMG через `hdiutil`.
 
 После первого подключения приложение регистрирует
 `~/Library/LaunchAgents/ru.rodman.packetech.sync.plist`. LaunchAgent запускает
-встроенный `kwan sync` при загрузке и затем каждые 21 600 секунд. Пользователь
+встроенный `packetech-cli sync` при загрузке и затем каждые 21 600 секунд. Пользователь
 должен сначала перенести приложение в `/Applications`, иначе расписание будет
 ссылаться на временно смонтированный DMG.
 

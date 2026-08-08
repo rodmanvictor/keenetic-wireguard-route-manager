@@ -5,4 +5,4 @@ After=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/kwan sync
+ExecStart=/usr/bin/packetech-cli sync

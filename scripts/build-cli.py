@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the current platform's standalone ``kwan`` release command."""
+"""Build the current platform's standalone ``packetech-cli`` command."""
 
 from pathlib import Path
 import subprocess
@@ -17,14 +17,14 @@ def main():
         '--clean',
         '--onefile',
         '--name',
-        'kwan',
+        'PackeTech-CLI' if sys.platform == 'win32' else 'packetech-cli',
         '--distpath',
         str(root / 'dist' / 'cli'),
         '--workpath',
         str(root / 'build' / 'pyinstaller'),
         '--specpath',
         str(root / 'build'),
-        str(root / 'scripts' / 'kwan-entry.py'),
+        str(root / 'scripts' / 'packetech-cli-entry.py'),
     ]
     subprocess.run(command, cwd=root, check=True)
 

@@ -4,6 +4,7 @@ import os
 import base64
 import json
 import socket
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -55,6 +56,7 @@ from keenetic_router.services.registry import (
 from keenetic_router.services.catalog import parse_selection, reconcile_inventory_domains
 from keenetic_router.services.favicons import favicon_url
 from keenetic_router.apps.desktop import RouteDesktop
+from keenetic_router.apps.launcher import main as packetech_main, terminal_main
 
 
 class TunnelNameTests(unittest.TestCase):
@@ -91,16 +93,16 @@ class TunnelNameTests(unittest.TestCase):
               id: Wireguard0
               interface-name: Wireguard0
               type: Wireguard
-              description: Mahteev
+              description: Home VPN
             Interface, name = "Wireguard1"
               id: Wireguard1
               interface-name: Wireguard1
               type: Wireguard
-              description: srv01
+              description: Travel VPN
             '''
         )
-        self.assertEqual(details['wg0'].display_name, 'Mahteev')
-        self.assertEqual(details['wg1'].display_name, 'srv01')
+        self.assertEqual(details['wg0'].display_name, 'Home VPN')
+        self.assertEqual(details['wg1'].display_name, 'Travel VPN')
         self.assertEqual(details['wg0'].status, 'unknown')
 
     def test_parses_live_wireguard_state(self):
@@ -108,11 +110,11 @@ class TunnelNameTests(unittest.TestCase):
         details = parse_wireguard_tunnel_details(
             '''
             id: Wireguard0
-            description: Mahteev
+            description: Home VPN
             link: down
             status: down
             id: Wireguard1
-            description: srv01
+            description: Travel VPN
             link: up
             status: up
             '''
@@ -431,17 +433,17 @@ class SchedulerTests(unittest.TestCase):
         """Generated units retain a spaced path and the requested interval."""
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            cli = root / 'PackeTech CLI' / 'kwan'
+            cli = root / 'PackeTech CLI' / 'packetech-cli'
             cli.parent.mkdir()
             cli.write_text('#!/bin/sh\n', encoding='utf-8')
             service, timer = write_user_units(cli, root / 'units')
             self.assertIn(f'ExecStart="{cli.resolve()}" sync', service.read_text(encoding='utf-8'))
             self.assertIn('OnUnitActiveSec=6h', timer.read_text(encoding='utf-8'))
 
-    def test_windows_task_runs_kwan_every_six_hours(self):
+    def test_windows_task_runs_packetech_cli_every_six_hours(self):
         """Task Scheduler receives the frozen CLI path and six-hour interval."""
         with tempfile.TemporaryDirectory() as directory:
-            cli = Path(directory) / 'PackeTech' / 'kwan.exe'
+            cli = Path(directory) / 'PackeTech' / 'PackeTech-CLI.exe'
             cli.parent.mkdir()
             cli.write_bytes(b'MZ')
             with patch('keenetic_router.core.scheduler.subprocess.run') as run:
@@ -453,13 +455,13 @@ class SchedulerTests(unittest.TestCase):
             self.assertEqual(command[0], 'schtasks.exe')
             self.assertIn('6', command)
             self.assertIn('PackeTech route sync', command)
-            self.assertIn('kwan.exe', command[-1])
+            self.assertIn('PackeTech-CLI.exe', command[-1])
 
-    def test_macos_launch_agent_runs_kwan_every_six_hours(self):
+    def test_macos_launch_agent_runs_packetech_cli_every_six_hours(self):
         """LaunchAgent stores the absolute CLI path and six-hour interval."""
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            cli = root / 'PackeTech.app' / 'Contents' / 'MacOS' / 'kwan'
+            cli = root / 'PackeTech.app' / 'Contents' / 'MacOS' / 'packetech-cli'
             cli.parent.mkdir(parents=True)
             cli.write_text('#!/bin/sh\n', encoding='utf-8')
             agent = write_macos_launch_agent(cli, root / 'LaunchAgents')
@@ -471,7 +473,7 @@ class SchedulerTests(unittest.TestCase):
     def test_macos_launch_agent_bootstraps_current_gui_domain(self):
         """macOS scheduling reloads the user agent without raising on bootout."""
         with tempfile.TemporaryDirectory() as directory:
-            cli = Path(directory) / 'kwan'
+            cli = Path(directory) / 'packetech-cli'
             cli.write_text('#!/bin/sh\n', encoding='utf-8')
             with (
                 patch(
@@ -488,7 +490,52 @@ class SchedulerTests(unittest.TestCase):
                 result = enable_macos_launch_agent(cli)
             self.assertTrue(result.enabled)
             self.assertEqual(run.call_count, 2)
-            self.assertEqual(run.call_args_list[1].args[0][:3], ['launchctl', 'bootstrap', 'gui/501'])
+            self.assertEqual(
+                run.call_args_list[1].args[0][:3],
+                ['launchctl', 'bootstrap', 'gui/501'],
+            )
+
+
+class BrandedLauncherTests(unittest.TestCase):
+    """Route the PackeTech command to GUI, CLI, and TUI surfaces."""
+
+    def test_no_arguments_open_desktop(self):
+        """A plain ``packetech`` command remains the graphical workflow."""
+        with patch('keenetic_router.apps.desktop.run') as desktop:
+            packetech_main([])
+        desktop.assert_called_once_with()
+
+    def test_regular_subcommand_opens_cli_with_branded_program_name(self):
+        """Network subcommands use CLI while keeping the PackeTech name."""
+        observed = []
+
+        def capture():
+            observed.extend(sys.argv)
+
+        with patch('keenetic_router.apps.cli.main', side_effect=capture) as cli:
+            packetech_main(['status'])
+        cli.assert_called_once_with()
+        self.assertEqual(observed, ['packetech', 'status'])
+
+    def test_tui_subcommand_opens_interactive_menu(self):
+        """The branded ``tui`` subcommand opens the interactive menu."""
+        with patch('keenetic_router.apps.tui.main') as tui:
+            packetech_main(['tui'])
+        tui.assert_called_once_with()
+
+    def test_linux_wrapper_can_preserve_unified_command_name(self):
+        """The packaged shell dispatcher keeps ``packetech`` in CLI help."""
+        observed = []
+
+        def capture():
+            observed.extend(sys.argv)
+
+        with (
+            patch.dict(os.environ, {'PACKETECH_PROG_NAME': 'packetech'}),
+            patch('keenetic_router.apps.cli.main', side_effect=capture),
+        ):
+            terminal_main(['status'])
+        self.assertEqual(observed, ['packetech', 'status'])
 
 
 class FaviconTests(unittest.TestCase):

@@ -296,7 +296,7 @@ def cmd_inventory_summary(args):
     """Show the stored reverse-engineering inventory summary without router access."""
     summary = inventory_summary()
     if not summary or not summary['routes']:
-        print('Инвентаризация ещё не выполнена: запусти `kwan inventory import`.')
+        print('Инвентаризация ещё не выполнена: запусти `packetech inventory import`.')
         return
     print(
         f"Маршрутов: {summary['routes']}; общих: {summary['shared'] or 0}; "
@@ -463,7 +463,10 @@ def cmd_setup(args):
         ]
         if not args.install_components or not missing:
             if missing:
-                print('\nДля автоматической установки: kwan setup --install-components --confirm-reboot')
+                print(
+                    '\nДля автоматической установки: '
+                    'packetech setup --install-components --confirm-reboot'
+                )
             return
         if not args.confirm_reboot:
             print('❌ Установка компонентов требует --confirm-reboot: Keenetic может обновиться и перезагрузиться.')
@@ -474,7 +477,10 @@ def cmd_setup(args):
         for error in result.errors:
             print(f'❌ {error}')
         if result.reboot_expected:
-            print('KeeneticOS применяет компоненты. Роутер может перезагрузиться; после запуска снова выполни `kwan setup`.')
+            print(
+                'KeeneticOS применяет компоненты. Роутер может перезагрузиться; '
+                'после запуска снова выполни `packetech setup`.'
+            )
     finally:
         try:
             client.disconnect()
@@ -533,6 +539,7 @@ def cmd_tunnel_import(args):
 def main():
     """Parse command-line arguments and run one isolated user operation."""
     parser = argparse.ArgumentParser(
+        prog=os.path.basename(sys.argv[0]),
         description='PackeTech — выбранные сайты через WireGuard',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog='''

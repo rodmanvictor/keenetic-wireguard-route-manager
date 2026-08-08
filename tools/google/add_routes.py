@@ -246,8 +246,8 @@ def main():
     print("╚═══════════════════════════════════════════════════════════╝")
     print()
     print("📝 Для проверки:")
-    print(f"   kwtui → пункт 3 (Показать все маршруты)")
-    print("   или: kwan list")
+    print("   packetech tui → пункт 3 (Показать все маршруты)")
+    print("   или: packetech list")
     print()
 
 

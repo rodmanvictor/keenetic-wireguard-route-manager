@@ -17,12 +17,12 @@ cp .env.example .env
 ## Терминал
 
 ```bash
-kwan setup
-kwan status
-kwtui
-kwan list
-kwan add example.com --tunnel wg1
-kwan remove example.com --tunnel wg1
+packetech setup
+packetech status
+packetech tui
+packetech list
+packetech add example.com --tunnel wg1
+packetech remove example.com --tunnel wg1
 kwimport examples/windows-routes.txt --tunnel wg1 --dry-run
 ```
 
@@ -30,12 +30,12 @@ kwimport examples/windows-routes.txt --tunnel wg1 --dry-run
 
 ## Автообновление доменов
 
-Добавление домена через `kwan add` одновременно добавляет текущие маршруты и сохраняет домен для дальнейших обновлений. Просмотр и ручной запуск:
+Добавление домена через `packetech add` одновременно добавляет текущие маршруты и сохраняет домен для дальнейших обновлений. Просмотр и ручной запуск:
 
 ```bash
-kwan watch list
-kwan sync --dry-run
-kwan sync
+packetech watch list
+packetech sync --dry-run
+packetech sync
 ```
 
 Включить локальный запуск в `00:00`, `06:00`, `12:00` и `18:00`:
@@ -77,7 +77,7 @@ Favicon загружается best-effort через Google S2 только п�
 После установки пакета:
 
 ```bash
-keenetic-desktop
+packetech
 ```
 
 Установочный `.deb` добавляет ярлык `PackeTech` в системное меню приложений. Файл
@@ -139,8 +139,8 @@ SQLite хранит источники как независимые связи,
 
 - `chrome` — временно добавлен из расширения;
 - `desktop` — добавлен из графического приложения;
-- `terminal` — добавлен из `kwtui`;
-- `cli` — добавлен командой `kwan`;
+- `terminal` — добавлен из `packetech tui`;
+- `cli` — добавлен командой `packetech`;
 - `rucens:<service>` — добавлен из каталога rucens.
 
 Один домен может иметь несколько источников. Снятие метки Chrome не отключает домен, если он также принадлежит rucens или был добавлен вручную. Когда отключён последний источник, приложение снимает DNS-владение и удаляет с Keenetic только точные IPv4 `/32` и IPv6 `/128` без других активных владельцев. Общие IP, а также маршруты с точным владельцем из rucens или инвентаризации, сохраняются. История DNS остаётся в SQLite.

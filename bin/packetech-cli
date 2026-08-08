@@ -1,0 +1,6 @@
+#!/bin/bash
+# PackeTech CLI/TUI source-checkout launcher
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+export PYTHONPATH="$PROJECT_DIR/src${PYTHONPATH:+:$PYTHONPATH}"
+exec "$PROJECT_DIR/.venv-build/bin/python" -c 'import sys; sys.argv[0]="packetech-cli"; from keenetic_router.apps.launcher import terminal_main; terminal_main()' "$@"

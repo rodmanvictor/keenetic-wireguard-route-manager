@@ -53,14 +53,24 @@ def next_scheduled_run(now=None):
 
 def scheduler_next_run():
     """Return systemd's actual next timer time, if the local timer is enabled."""
-    result = subprocess.run(
-        ['systemctl', '--user', 'show', 'keenetic-route-sync.timer', '--property=NextElapseUSecRealtime', '--value'],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    value = result.stdout.strip()
-    return value if result.returncode == 0 and value else None
+    for timer in ('paketych-sync.timer', 'keenetic-route-sync.timer'):
+        result = subprocess.run(
+            [
+                'systemctl',
+                '--user',
+                'show',
+                timer,
+                '--property=NextElapseUSecRealtime',
+                '--value',
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        value = result.stdout.strip()
+        if result.returncode == 0 and value:
+            return value
+    return None
 
 
 def pause():
@@ -70,7 +80,7 @@ def pause():
 
 def render_header():
     """Print the persistent dashboard heading and upcoming scheduled run."""
-    print(f"{Colors.HEADER}{Colors.BOLD}Keenetic: маршруты сервисов{Colors.END}")
+    print(f"{Colors.HEADER}{Colors.BOLD}PackeTech · терминальный режим{Colors.END}")
     next_run = scheduler_next_run()
     if next_run:
         print(f'Следующее плановое обновление: {next_run}')
