@@ -36,6 +36,14 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
+      - name: Install Flutter for macOS
+        if: runner.os == 'macOS'
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: "3.44.8"
+          architecture: ${{ matrix.macos_arch }}
+          cache: true
       - name: Install build dependencies
         run: python -m pip install -r requirements-dev.txt -e .
       - name: Run tests
