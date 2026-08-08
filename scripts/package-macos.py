@@ -37,26 +37,38 @@ def _architecture() -> str:
     raise RuntimeError(f'Неподдерживаемая архитектура macOS: {machine}')
 
 
-def _require_builds() -> tuple[Path, Path]:
-    """Return the native app bundle and CLI or raise a clear build error.
+def _require_builds() -> tuple[Path, Path, Path]:
+    """Return the native app, CLI, and Chrome helper or raise a clear build error.
 
     Raises:
         FileNotFoundError: If Flet or PyInstaller has not produced either build.
     """
     application = DIST / 'desktop' / 'PackeTech.app'
     cli = DIST / 'cli' / 'packetech-cli'
-    missing = [str(path.relative_to(ROOT)) for path in (application, cli) if not path.exists()]
+    chrome_host = DIST / 'chrome-host' / 'packetech-chrome-host'
+    missing = [
+        str(path.relative_to(ROOT))
+        for path in (application, cli, chrome_host)
+        if not path.exists()
+    ]
     if missing:
         raise FileNotFoundError(f'Сначала соберите: {", ".join(missing)}')
-    return application, cli
+    return application, cli, chrome_host
 
 
-def build_dmg(application: Path, cli: Path, version: str, architecture: str) -> Path:
+def build_dmg(
+    application: Path,
+    cli: Path,
+    chrome_host: Path,
+    version: str,
+    architecture: str,
+) -> Path:
     """Create an ad-hoc-signed DMG and return its path.
 
     Args:
         application: Native Flet ``PackeTech.app`` bundle.
         cli: Native standalone route synchronizer.
+        chrome_host: Native standalone Chrome Native Messaging helper.
         version: Semantic version without a ``v`` prefix.
         architecture: Stable ``arm64`` or ``x86_64`` suffix.
 
@@ -74,6 +86,9 @@ def build_dmg(application: Path, cli: Path, version: str, architecture: str) -> 
     embedded_cli = packaged_app / 'Contents' / 'MacOS' / 'packetech-cli'
     shutil.copy2(cli, embedded_cli)
     embedded_cli.chmod(0o755)
+    embedded_chrome_host = packaged_app / 'Contents' / 'MacOS' / 'packetech-chrome-host'
+    shutil.copy2(chrome_host, embedded_chrome_host)
+    embedded_chrome_host.chmod(0o755)
     (staging / 'Applications').symlink_to('/Applications')
     (staging / 'ПРОЧТИ МЕНЯ.txt').write_text(
         'PACKETECH ДЛЯ macOS\n\n'
@@ -119,9 +134,9 @@ def write_checksum(artifact: Path, architecture: str) -> Path:
 
 def main() -> None:
     """Package the current native macOS build and print generated paths."""
-    application, cli = _require_builds()
+    application, cli, chrome_host = _require_builds()
     architecture = _architecture()
-    artifact = build_dmg(application, cli, _version(), architecture)
+    artifact = build_dmg(application, cli, chrome_host, _version(), architecture)
     checksum = write_checksum(artifact, architecture)
     print(artifact)
     print(checksum)

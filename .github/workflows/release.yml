@@ -54,6 +54,8 @@ jobs:
           PYTHONPATH: src
       - name: Build standalone CLI
         run: python scripts/build-cli.py
+      - name: Build Chrome native helper
+        run: python scripts/build-chrome-host.py
       - name: Build desktop application
         run: python scripts/build-desktop.py
         env:

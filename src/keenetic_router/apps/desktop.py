@@ -45,6 +45,13 @@ from keenetic_router.services.cleanup import purge_domain_routes
 from keenetic_router.services.catalog import reconcile_inventory_domains
 from keenetic_router.services.inventory import import_current_inventory
 from keenetic_router.services.favicons import favicon_url
+from keenetic_router.integrations.chrome_installer import (
+    detect_chrome,
+    inspect_chrome_extension,
+    open_chrome_extensions,
+    prepare_chrome_extension,
+    reveal_extension_directory,
+)
 
 
 BG = '#0B0E0C'
@@ -79,6 +86,7 @@ class RouteDesktop:
         self.tunnel_labels = {}
         self.tunnel_statuses = {}
         self.component_states = {}
+        self.chrome_installation = None
         self.rows = []
         self.selected_id = None
         self.busy = False
@@ -888,6 +896,176 @@ class RouteDesktop:
         )
         self.page.show_dialog(dialog)
 
+    def open_chrome_manager(self, _event=None):
+        """Show the guided Chrome extension installation flow.
+
+        PackeTech performs every local setup step itself. Chrome intentionally
+        keeps the final unpacked-extension confirmation under direct user
+        control, so the dialog explains that single remaining action and opens
+        both required windows.
+        """
+        browser = detect_chrome()
+        prepared = self.chrome_installation or inspect_chrome_extension(browser=browser)
+        if prepared is not None:
+            self.chrome_installation = prepared
+
+        def step_card(number, title, description, *, complete=False):
+            """Return one compact, consistently aligned installer step."""
+            return ft.Container(
+                padding=14,
+                border_radius=14,
+                bgcolor=PANEL if not complete else ft.Colors.with_opacity(0.08, ACID),
+                border=ft.Border.all(1, ACID if complete else LINE),
+                content=ft.Row(
+                    spacing=12,
+                    vertical_alignment=ft.CrossAxisAlignment.START,
+                    controls=[
+                        ft.Container(
+                            width=30,
+                            height=30,
+                            border_radius=9,
+                            alignment=ft.Alignment.CENTER,
+                            bgcolor=ACID if complete else PANEL_ACTIVE,
+                            content=ft.Icon(
+                                ft.Icons.CHECK if complete else None,
+                                color=BG if complete else TEXT,
+                                size=17,
+                            ) if complete else ft.Text(
+                                str(number),
+                                color=TEXT,
+                                weight=ft.FontWeight.BOLD,
+                            ),
+                        ),
+                        ft.Column(
+                            expand=True,
+                            spacing=3,
+                            controls=[
+                                ft.Text(title, color=TEXT, weight=ft.FontWeight.BOLD),
+                                ft.Text(description, color=MUTED, size=11),
+                            ],
+                        ),
+                    ],
+                ),
+            )
+
+        async def install(_event=None):
+            install_button.disabled = True
+            install_button.content = ft.Row(
+                tight=True,
+                spacing=9,
+                controls=[
+                    ft.ProgressRing(width=16, height=16, stroke_width=2, color=BG),
+                    ft.Text('Готовлю расширение…', weight=ft.FontWeight.BOLD),
+                ],
+            )
+            self.page.update()
+            try:
+                result = await asyncio.to_thread(prepare_chrome_extension, browser=browser)
+                self.chrome_installation = result
+                await asyncio.to_thread(open_chrome_extensions, result.browser)
+                await asyncio.to_thread(reveal_extension_directory, result.extension_directory)
+            except Exception as exception:
+                install_button.disabled = False
+                install_button.content = 'Установить расширение'
+                install_button.icon = ft.Icons.EXTENSION
+                self.page.update()
+                self._show_error(str(exception))
+                return
+            self.page.pop_dialog()
+            self.open_chrome_manager()
+
+        def open_extensions(_event=None):
+            if browser:
+                open_chrome_extensions(browser)
+
+        def reveal_folder(_event=None):
+            if prepared:
+                reveal_extension_directory(prepared.extension_directory)
+
+        if browser is None:
+            browser_status = 'Google Chrome не найден'
+            browser_color = DANGER
+        else:
+            browser_status = f'{browser.name} найден'
+            browser_color = ACID
+
+        if prepared:
+            steps = [
+                step_card(1, 'Файлы и помощник готовы', 'PackeTech уже связал расширение с общей базой.', complete=True),
+                step_card(2, 'Откройте chrome://extensions', 'PackeTech уже открыл эту страницу в Chrome.', complete=True),
+                step_card(
+                    3,
+                    'Подключите папку один раз',
+                    'Включите «Режим разработчика» → нажмите «Загрузить распакованное расширение» → выберите открытую папку.',
+                ),
+            ]
+            actions = [
+                ft.Button('Открыть Chrome', icon=ft.Icons.OPEN_IN_NEW, on_click=open_extensions),
+                ft.Button('Показать папку', icon=ft.Icons.FOLDER_OPEN, on_click=reveal_folder),
+                ft.Button('Закрыть', bgcolor=ACID, color=BG, on_click=lambda _event: self.page.pop_dialog()),
+            ]
+        else:
+            steps = [
+                step_card(1, 'PackeTech подготовит расширение', 'Скопирует его в постоянную пользовательскую папку.'),
+                step_card(2, 'Подключит локальный помощник', 'Расширение возьмет роутер и домены из тех же настроек PackeTech.'),
+                step_card(3, 'Покажет последнее действие', 'Chrome попросит один раз выбрать готовую папку.'),
+            ]
+            install_button = ft.Button(
+                'Установить расширение',
+                icon=ft.Icons.EXTENSION,
+                bgcolor=ACID,
+                color=BG,
+                disabled=browser is None,
+                on_click=install,
+            )
+            actions = [
+                ft.Button('Закрыть', on_click=lambda _event: self.page.pop_dialog()),
+                install_button,
+            ]
+
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Row(
+                spacing=10,
+                controls=[
+                    ft.Icon(ft.Icons.EXTENSION, color=ACID),
+                    ft.Text('Расширение Chrome'),
+                ],
+            ),
+            content=ft.Column(
+                width=620,
+                tight=True,
+                spacing=10,
+                controls=[
+                    ft.Container(
+                        padding=ft.Padding.symmetric(horizontal=12, vertical=9),
+                        border_radius=12,
+                        bgcolor=ft.Colors.with_opacity(0.08, browser_color),
+                        content=ft.Row(
+                            spacing=8,
+                            controls=[
+                                ft.Icon(ft.Icons.CIRCLE, color=browser_color, size=10),
+                                ft.Text(browser_status, color=browser_color, size=11, weight=ft.FontWeight.BOLD),
+                            ],
+                        ),
+                    ),
+                    ft.Text(
+                        'После установки значок PackeTech добавляет открытый сайт в общую базу и сразу обновляет маршруты.',
+                        color=MUTED,
+                        size=11,
+                    ),
+                    *steps,
+                    ft.Text(
+                        'Chrome специально не разрешает программам включать распакованные расширения без подтверждения пользователя.',
+                        color=MUTED,
+                        size=10,
+                    ),
+                ],
+            ),
+            actions=actions,
+        )
+        self.page.show_dialog(dialog)
+
     def _header(self):
         transport = (self.report.transport if self.report else 'offline').upper()
         self.sync_button = ft.Button(
@@ -933,6 +1111,15 @@ class RouteDesktop:
                         elevation=0,
                         height=44,
                         on_click=self.open_vpn_manager,
+                    ),
+                    ft.Button(
+                        'Chrome',
+                        icon=ft.Icons.EXTENSION,
+                        color=TEXT,
+                        bgcolor=PANEL_ACTIVE,
+                        elevation=0,
+                        height=44,
+                        on_click=self.open_chrome_manager,
                     ),
                     self.sync_button,
                     ft.IconButton(

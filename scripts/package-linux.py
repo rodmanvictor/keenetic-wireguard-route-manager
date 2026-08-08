@@ -35,14 +35,19 @@ def _version() -> str:
         return tomllib.load(stream)['project']['version']
 
 
-def _require_builds() -> tuple[Path, Path]:
-    """Return desktop and CLI executables or raise a clear build error."""
+def _require_builds() -> tuple[Path, Path, Path]:
+    """Return desktop, CLI, and Chrome helper or raise a clear build error."""
     desktop = DIST / 'desktop' / 'packetech'
     cli = DIST / 'cli' / 'packetech-cli'
-    missing = [str(path.relative_to(ROOT)) for path in (desktop, cli) if not path.is_file()]
+    chrome_host = DIST / 'chrome-host' / 'packetech-chrome-host'
+    missing = [
+        str(path.relative_to(ROOT))
+        for path in (desktop, cli, chrome_host)
+        if not path.is_file()
+    ]
     if missing:
         raise FileNotFoundError(f'Сначала соберите: {", ".join(missing)}')
-    return desktop, cli
+    return desktop, cli, chrome_host
 
 
 def _desktop_entry() -> str:
@@ -71,8 +76,8 @@ PACKETECH_PROG_NAME=packetech exec "$(dirname "$0")/packetech-cli" "$@"
 '''
 
 
-def build_deb(desktop: Path, cli: Path, version: str) -> Path:
-    """Build a root-owned Debian package and return its final path."""
+def build_deb(desktop: Path, cli: Path, chrome_host: Path, version: str) -> Path:
+    """Build a root-owned Debian package with GUI, CLI, and Chrome helper."""
     staging = ROOT / 'build' / 'debian' / 'packetech'
     if staging.exists():
         shutil.rmtree(staging)
@@ -88,7 +93,7 @@ Depends: libgtk-3-0 | libgtk-3-0t64, libsecret-1-0
 Conflicts: paketych
 Replaces: paketych
 Provides: paketych
-Installed-Size: {(desktop.stat().st_size + cli.stat().st_size) // 1024}
+Installed-Size: {(desktop.stat().st_size + cli.stat().st_size + chrome_host.stat().st_size) // 1024}
 Description: Выбранные сайты через WireGuard на Keenetic
  PackeTech добавляет домены и IP-маршруты, импортирует WireGuard,
  автоматически включает SSH через Telnet и обновляет DNS-маршруты.
@@ -97,6 +102,7 @@ Description: Выбранные сайты через WireGuard на Keenetic
 
     _copy(desktop, staging / 'usr/lib/packetech/packetech-gui', 0o755)
     _copy(cli, staging / 'usr/bin/packetech-cli', 0o755)
+    _copy(chrome_host, staging / 'usr/lib/packetech/packetech-chrome-host', 0o755)
     legacy_cli = staging / 'usr/bin/kwan'
     legacy_cli.symlink_to('packetech-cli')
     launcher = staging / 'usr/bin/packetech'
@@ -137,14 +143,15 @@ Description: Выбранные сайты через WireGuard на Keenetic
     return output
 
 
-def build_portable(desktop: Path, cli: Path, version: str) -> Path:
-    """Create a tar.gz with two runnable files and a short launch guide."""
+def build_portable(desktop: Path, cli: Path, chrome_host: Path, version: str) -> Path:
+    """Create a portable tar.gz with the GUI, CLI, and Chrome helper."""
     staging = ROOT / 'build' / 'portable' / 'packetech'
     if staging.parent.exists():
         shutil.rmtree(staging.parent)
     staging.mkdir(parents=True)
     _copy(desktop, staging / 'lib/packetech/packetech-gui', 0o755)
     _copy(cli, staging / 'packetech-cli', 0o755)
+    _copy(chrome_host, staging / 'packetech-chrome-host', 0o755)
     launcher = staging / 'packetech'
     launcher.write_text(
         _unified_launcher('lib/packetech/packetech-gui'),
@@ -180,9 +187,12 @@ def write_checksums(paths: list[Path]) -> Path:
 
 def main() -> None:
     """Build both Linux package formats from the current native binaries."""
-    desktop, cli = _require_builds()
+    desktop, cli, chrome_host = _require_builds()
     version = _version()
-    artifacts = [build_deb(desktop, cli, version), build_portable(desktop, cli, version)]
+    artifacts = [
+        build_deb(desktop, cli, chrome_host, version),
+        build_portable(desktop, cli, chrome_host, version),
+    ]
     checksum = write_checksums(artifacts)
     for path in (*artifacts, checksum):
         print(path)

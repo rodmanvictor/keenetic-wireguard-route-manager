@@ -40,6 +40,8 @@ def main() -> None:
         str(root / 'assets' / 'icons' / 'hicolor' / '512x512' / 'apps' / 'paketych.png'),
         '--add-data',
         f'{root / "src" / "keenetic_router" / "assets"}{separator}keenetic_router/assets',
+        '--add-data',
+        f'{root / "src" / "keenetic_router" / "chrome_extension"}{separator}keenetic_router/chrome_extension',
         '--distpath',
         str(root / 'dist' / 'desktop'),
         '--workpath',

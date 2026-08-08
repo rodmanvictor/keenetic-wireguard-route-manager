@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Открыть через VPN</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <main>
+    <header>
+      <div class="brand-mark" aria-hidden="true"><span></span></div>
+      <div>
+        <p class="eyebrow">ПАКЕТЫЧ · CHROME</p>
+        <h1>Открыть сайт</h1>
+      </div>
+      <div id="connection-dot" class="connection-dot pending" title="Проверка"></div>
+    </header>
+    <section class="site-card">
+      <div id="favicon" class="favicon" aria-hidden="true">↗</div>
+      <div class="site-copy">
+        <p class="caption">Текущая вкладка</p>
+        <p id="domain" class="domain">Определяю сайт…</p>
+      </div>
+    </section>
+    <div id="status" class="status neutral">
+      <span class="status-icon">•</span>
+      <span id="status-text">Проверяю подключение</span>
+    </div>
+    <button id="add" class="primary" type="button" disabled>
+      <span id="button-label">Добавить через VPN</span>
+      <span class="arrow">→</span>
+    </button>
+    <div id="details" class="details" hidden>
+      <div><span>Источник</span><strong>Chrome</strong></div>
+      <div><span>Маршрут</span><strong>VPN</strong></div>
+      <div><span>IP-адресов</span><strong id="ip-count">0</strong></div>
+    </div>
+    <p class="footnote">Домен попадет в список временных сайтов. Его можно удалить в приложении PackeTech.</p>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>

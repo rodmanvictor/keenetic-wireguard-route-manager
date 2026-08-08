@@ -52,7 +52,14 @@ keenetic-desktop = "keenetic_router.apps.desktop:run"
 where = ["src"]
 
 [tool.setuptools.package-data]
-keenetic_router = ["assets/*.png"]
+keenetic_router = [
+    "assets/*.png",
+    "chrome_extension/*.json",
+    "chrome_extension/*.html",
+    "chrome_extension/*.css",
+    "chrome_extension/*.js",
+    "chrome_extension/icons/*.png",
+]
 
 [tool.flet.app]
 path = "src"

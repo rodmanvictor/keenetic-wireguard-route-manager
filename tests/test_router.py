@@ -2,6 +2,7 @@
 
 import os
 import base64
+import hashlib
 import json
 import socket
 import sys
@@ -57,6 +58,12 @@ from keenetic_router.services.catalog import parse_selection, reconcile_inventor
 from keenetic_router.services.favicons import favicon_url
 from keenetic_router.apps.desktop import RouteDesktop
 from keenetic_router.apps.launcher import main as packetech_main, terminal_main
+from keenetic_router.integrations.chrome_installer import (
+    ChromeBrowser,
+    EXTENSION_ID,
+    prepare_chrome_extension,
+)
+from keenetic_router.integrations.chrome_host import choose_tunnel
 
 
 class TunnelNameTests(unittest.TestCase):
@@ -552,6 +559,72 @@ class FaviconTests(unittest.TestCase):
         """An arbitrary non-network value cannot enter the image query."""
         with self.assertRaises(ValueError):
             favicon_url('not a website')
+
+
+class ChromeIntegrationTests(unittest.TestCase):
+    """Verify the one-click Chrome preparation without launching a browser."""
+
+    def test_manifest_key_produces_stable_extension_id(self):
+        """The bundled public key must keep native-host permissions stable."""
+        manifest_path = (
+            Path(__file__).resolve().parents[1]
+            / 'src/keenetic_router/chrome_extension/manifest.json'
+        )
+        public_key = base64.b64decode(json.loads(manifest_path.read_text())['key'])
+        digest = hashlib.sha256(public_key).digest()[:16]
+        actual = ''.join(
+            chr(ord('a') + (byte >> 4)) + chr(ord('a') + (byte & 15))
+            for byte in digest
+        )
+        self.assertEqual(actual, EXTENSION_ID)
+
+    def test_preparation_copies_extension_and_registers_native_host(self):
+        """A detected browser receives a ready folder and matching origin."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            browser_binary = root / 'google-chrome'
+            browser_binary.write_text('', encoding='utf-8')
+            host_binary = root / 'packetech-chrome-host'
+            host_binary.write_text('', encoding='utf-8')
+            browser = ChromeBrowser(
+                'Google Chrome',
+                browser_binary,
+                root / 'NativeMessagingHosts',
+            )
+            with patch.dict(
+                os.environ,
+                {'KEENETIC_ROUTE_MANAGER_CONFIG_DIR': str(root / 'packetech-config')},
+            ):
+                result = prepare_chrome_extension(
+                    browser=browser,
+                    host_executable=host_binary,
+                    system='Linux',
+                )
+            extension_manifest = json.loads(
+                (result.extension_directory / 'manifest.json').read_text(encoding='utf-8')
+            )
+            native_manifest = json.loads(result.native_manifest.read_text(encoding='utf-8'))
+            self.assertEqual(extension_manifest['name'], 'PackeTech · открыть сайт')
+            self.assertTrue((result.extension_directory / 'icons/icon128.png').is_file())
+            self.assertEqual(
+                native_manifest['allowed_origins'],
+                [f'chrome-extension://{EXTENSION_ID}/'],
+            )
+            self.assertEqual(native_manifest['path'], str(host_binary.resolve()))
+
+    def test_native_host_reuses_tunnel_from_shared_registry(self):
+        """The extension does not hardcode wg1 when another tunnel is used."""
+        with tempfile.TemporaryDirectory() as directory:
+            previous = os.environ.get('ROUTE_SYNC_DATABASE')
+            os.environ['ROUTE_SYNC_DATABASE'] = str(Path(directory) / 'routes.sqlite3')
+            try:
+                add_managed_domain('example.com', 'wg0', source='desktop')
+                self.assertEqual(choose_tunnel(), 'wg0')
+            finally:
+                if previous is None:
+                    os.environ.pop('ROUTE_SYNC_DATABASE', None)
+                else:
+                    os.environ['ROUTE_SYNC_DATABASE'] = previous
 
 
 class OnboardingParserTests(unittest.TestCase):

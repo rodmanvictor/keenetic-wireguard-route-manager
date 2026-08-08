@@ -19,6 +19,7 @@ Debian-пакет устанавливает:
 
 - `/usr/lib/packetech/packetech-gui` — автономный Flet GUI;
 - `/usr/bin/packetech-cli` — автономный CLI и исполнитель синхронизации;
+- `/usr/lib/packetech/packetech-chrome-host` — локальный помощник расширения Chrome;
 - `/usr/bin/packetech` — единый запуск GUI, CLI и TUI;
 - `/usr/bin/paketych` — совместимый псевдоним старого имени;
 - desktop entry и адаптивные иконки 16–512 px;
@@ -33,6 +34,7 @@ Windows-сборка создается на нативном `windows-latest`. 
 
 - `PackeTech.exe` — автономный оконный интерфейс;
 - `PackeTech-CLI.exe` — автономный CLI и исполнитель фоновой синхронизации;
+- `PackeTech-Chrome-Host.exe` — локальный помощник расширения Chrome;
 - `ПРОЧТИ МЕНЯ.txt` — короткий сценарий запуска.
 
 После первого успешного подключения приложение создает задачу
@@ -47,7 +49,8 @@ Windows-файлы версии 0.3.1 не подписаны Authenticode. Smar
 Две macOS-сборки создаются на нативных GitHub-hosted runners: ARM64 на
 `macos-26`, Intel x86-64 на `macos-26-intel`. Поддерживаемая команда
 `flet build macos` формирует `PackeTech.app` для целевой архитектуры, а
-`scripts/package-macos.py` добавляет внутрь standalone `packetech-cli`, ставит ad-hoc
+`scripts/package-macos.py` добавляет внутрь standalone `packetech-cli` и
+`packetech-chrome-host`, ставит ad-hoc
 подпись и собирает DMG через `hdiutil`.
 
 После первого подключения приложение регистрирует
