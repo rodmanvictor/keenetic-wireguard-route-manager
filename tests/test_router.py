@@ -3,6 +3,7 @@
 import os
 import base64
 import json
+import socket
 import tempfile
 import unittest
 from pathlib import Path
@@ -12,8 +13,14 @@ from types import SimpleNamespace
 from keenetic_router.core.router import (
     clear_runtime_connection,
     full_interface_name,
+    is_ip_address,
+    normalize_route_network,
     normalize_tunnel_name,
+    parse_wireguard_routes_output,
     parse_wireguard_tunnel_details,
+    resolve_domain,
+    route_add_command,
+    route_delete_command,
 )
 from keenetic_router.core.onboarding import bootstrap_router, parse_component_states
 from keenetic_router.core.profiles import RouterProfile, load_profile, save_profile
@@ -114,6 +121,71 @@ class TunnelNameTests(unittest.TestCase):
         self.assertEqual(details['wg1'].status, 'up')
 
 
+class DualStackRouteTests(unittest.TestCase):
+    """Verify family-aware DNS, normalization, parsing, and CLI commands."""
+
+    def test_accepts_ipv4_ipv6_hosts_and_networks(self):
+        """Manual route input recognizes both address families and CIDRs."""
+        self.assertTrue(is_ip_address('203.0.113.7'))
+        self.assertTrue(is_ip_address('2001:db8::7'))
+        self.assertTrue(is_ip_address('2001:db8::/48'))
+        self.assertFalse(is_ip_address('example.com'))
+
+    def test_builds_family_specific_keenetic_commands(self):
+        """Keenetic receives dotted IPv4 masks and prefixed IPv6 networks."""
+        ipv4 = normalize_route_network('203.0.113.7')
+        ipv6 = normalize_route_network('2001:db8::7')
+        self.assertEqual(
+            route_add_command(ipv4, 'Wireguard1'),
+            'ip route 203.0.113.7 255.255.255.255 0.0.0.0 Wireguard1',
+        )
+        self.assertEqual(
+            route_add_command(ipv6, 'Wireguard1'),
+            'ipv6 route 2001:db8::7/128 Wireguard1',
+        )
+        self.assertEqual(
+            route_delete_command(ipv6, 'Wireguard1'),
+            'no ipv6 route 2001:db8::7/128 Wireguard1',
+        )
+
+    def test_resolver_keeps_a_and_aaaa_answers(self):
+        """A domain subscription receives deduplicated A and AAAA addresses."""
+        answers = [
+            (socket.AF_INET6, socket.SOCK_STREAM, 6, '', ('2001:db8::7', 0, 0, 0)),
+            (socket.AF_INET, socket.SOCK_STREAM, 6, '', ('203.0.113.7', 0)),
+            (socket.AF_INET6, socket.SOCK_STREAM, 6, '', ('2001:db8::7', 0, 0, 0)),
+        ]
+        with patch('socket.getaddrinfo', return_value=answers):
+            self.assertEqual(resolve_domain('example.com'), ['203.0.113.7', '2001:db8::7'])
+
+    def test_parses_structured_ipv6_wireguard_routes(self):
+        """The Keenetic IPv6 status format becomes normal inventory rows."""
+        routes = parse_wireguard_routes_output(
+            '''
+            route6:
+              destination: 2001:db8::7/128
+              gateway: ::
+              interface: Wireguard1
+              metric: 1000
+              static: yes
+            route6:
+              destination: fd00::2/128
+              interface: Wireguard1
+              metric: 256
+              static: no
+            route6:
+              destination: ::/0
+              interface: Wireguard1
+              metric: 1000
+              static: yes
+            '''
+        )
+        self.assertEqual(
+            routes,
+            [{'network': '2001:db8::7/128', 'interface': 'Wireguard1', 'priority': '1000'}],
+        )
+
+
 class DomainInputTests(unittest.TestCase):
     """Accept website addresses without forcing users to edit pasted text."""
 
@@ -178,6 +250,17 @@ class DomainRegistryTests(unittest.TestCase):
         self.assertEqual(release_domain_route_claims('one.example'), [])
         orphaned = release_domain_route_claims('two.example')
         self.assertEqual([row['network'] for row in orphaned], ['203.0.113.7/32'])
+
+    def test_shared_ipv6_dns_route_uses_128_and_keeps_both_owners(self):
+        """IPv6 DNS ownership has the same shared-route protection as IPv4."""
+        add_managed_domain('one.example', 'wg1', source='chrome')
+        add_managed_domain('two.example', 'wg1', source='desktop')
+        record_domain_route('one.example', '2001:db8::7', 'Wireguard1')
+        record_domain_route('two.example', '2001:db8::7', 'Wireguard1')
+
+        self.assertEqual(release_domain_route_claims('one.example'), [])
+        orphaned = release_domain_route_claims('two.example')
+        self.assertEqual([row['network'] for row in orphaned], ['2001:db8::7/128'])
 
     def test_inventory_does_not_mark_managed_dns_route_unclassified(self):
         """A DNS-domain claim remains authoritative across reverse inventory."""
@@ -490,7 +573,7 @@ class WireGuardImportTests(unittest.TestCase):
         return f'''
         [Interface]
         PrivateKey = {self.sample_key()}
-        Address = 10.42.0.2/24
+        Address = 10.42.0.2/24, fd00::2/128
         DNS = 1.1.1.1
 
         [Peer]
@@ -517,7 +600,9 @@ class WireGuardImportTests(unittest.TestCase):
         self.assertNotIn(self.sample_key(), preview)
         self.assertNotIn(self.sample_key(2), preview)
         self.assertIn('private-key ***', preview)
-        self.assertTrue(any('IPv6' in warning for warning in result.warnings))
+        self.assertIn('ipv6 address fd00::2/128', preview)
+        self.assertIn('allow-ips :: 0', preview)
+        self.assertFalse(any('IPv6' in warning for warning in result.warnings))
 
     def test_qr_image_round_trip(self):
         """A WireGuard QR image decodes to the same non-secret summary."""
@@ -527,7 +612,7 @@ class WireGuardImportTests(unittest.TestCase):
             path = os.path.join(directory, 'wireguard.png')
             qrcode.make(self.sample_config()).save(path)
             profile = load_wireguard_qr(path)
-        self.assertEqual(profile.addresses, ('10.42.0.2/24',))
+        self.assertEqual(profile.addresses, ('10.42.0.2/24', 'fd00::2/128'))
         self.assertEqual(profile.peers[0].endpoint, 'vpn.example.com:51820')
 
     def test_named_profile_management_uses_explicit_interface_commands(self):

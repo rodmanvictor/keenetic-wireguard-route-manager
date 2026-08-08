@@ -6,8 +6,11 @@ import ipaddress
 import json
 import urllib.request
 
-from keenetic_router.core.router import create_router_client
-from keenetic_router.services.registry import store_route_inventory
+from keenetic_router.core.router import (
+    create_router_client,
+    parse_wireguard_routes_output,
+)
+from keenetic_router.services.registry import inventory_summary, store_route_inventory
 
 
 RUCENS_API = 'https://api.github.com/repos/vitalygashkov/rucens/contents/bat'
@@ -24,24 +27,20 @@ def fetch_text(url):
 
 
 def router_routes():
-    """Return unique WireGuard routes as ``(network, interface)`` tuples."""
+    """Return unique IPv4/IPv6 WireGuard routes from the live Keenetic."""
     client = create_router_client()
     try:
-        output = client.command('show ip route')
+        outputs = (
+            client.command('show ip route'),
+            client.command('show ipv6 route'),
+        )
     finally:
         client.disconnect()
-    routes = []
-    for line in output.splitlines():
-        parts = line.split()
-        if len(parts) < 2 or '/' not in parts[0]:
-            continue
-        interface = next((item for item in parts if 'wireguard' in item.lower()), None)
-        if not interface:
-            continue
-        try:
-            routes.append((str(ipaddress.ip_network(parts[0], strict=False)), interface))
-        except ValueError:
-            continue
+    routes = [
+        (route['network'], route['interface'])
+        for output in outputs
+        for route in parse_wireguard_routes_output(output)
+    ]
     return list(dict.fromkeys(routes))
 
 
@@ -81,9 +80,12 @@ def collected_claims(networks):
                     claims[network].append({'kind': 'rucens', 'name': service, 'confidence': 'exact'})
 
     for item in json.loads(fetch_text(GOOGLE_RANGES)).get('prefixes', []):
-        network = item.get('ipv4Prefix')
-        if network in known:
-            claims[network].append({'kind': 'published', 'name': 'google', 'confidence': 'exact'})
+        for key in ('ipv4Prefix', 'ipv6Prefix'):
+            network = item.get(key)
+            if network in known:
+                claims[network].append(
+                    {'kind': 'published', 'name': 'google', 'confidence': 'exact'}
+                )
     for line in fetch_text(TELEGRAM_RANGES).splitlines():
         network = line.strip()
         if network in known:
@@ -96,9 +98,11 @@ def import_current_inventory():
     routes = router_routes()
     claims = collected_claims([network for network, _ in routes])
     store_route_inventory(routes, claims)
+    stored = inventory_summary()
+    unclassified = int(stored['unclassified'] or 0)
     return {
         'routes': len(routes),
-        'attributed': len(claims),
-        'shared': sum(1 for items in claims.values() if len(items) > 1),
-        'unclassified': len(routes) - len(claims),
+        'attributed': len(routes) - unclassified,
+        'shared': int(stored['shared'] or 0),
+        'unclassified': unclassified,
     }

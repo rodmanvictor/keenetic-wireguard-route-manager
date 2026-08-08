@@ -1283,12 +1283,12 @@ class RouteDesktop:
                             self._technical_hint(
                                 ft.Icons.LANGUAGE,
                                 'DNS IP',
-                                'Точный IPv4-адрес, который домен вернул при последней проверке.',
+                                'Точный IPv4- или IPv6-адрес из последней DNS-проверки.',
                             ),
                             self._technical_hint(
                                 ft.Icons.ACCOUNT_TREE_OUTLINED,
                                 'CIDR',
-                                'Диапазон IPv4-адресов из опубликованного списка сервиса.',
+                                'Диапазон IPv4- или IPv6-адресов из списка сервиса.',
                             ),
                         ],
                     ),

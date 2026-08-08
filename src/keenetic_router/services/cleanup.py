@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 import ipaddress
 import json
 
-from keenetic_router.core.router import create_router_client
+from keenetic_router.core.router import create_router_client, route_delete_command
 from keenetic_router.services.registry import (
     connect,
     database_path,
@@ -81,8 +81,7 @@ def purge_unclassified_routes(progress=None, limit=None):
     try:
         for index, route in enumerate(routes, start=1):
             network = ipaddress.ip_network(route['network'], strict=False)
-            command = f'no ip route {network.network_address} {network.netmask} {route["interface"]}'
-            output = client.command(command)
+            output = client.command(route_delete_command(network, route['interface']))
             if 'error' in output.lower():
                 failed.append(route)
             else:
@@ -128,9 +127,7 @@ def purge_domain_routes(domain):
     try:
         for route in routes:
             network = ipaddress.ip_network(route['network'], strict=False)
-            output = client.command(
-                f'no ip route {network.network_address} {network.netmask} {route["interface"]}'
-            )
+            output = client.command(route_delete_command(network, route['interface']))
             if 'error' in output.lower():
                 failed += 1
                 continue

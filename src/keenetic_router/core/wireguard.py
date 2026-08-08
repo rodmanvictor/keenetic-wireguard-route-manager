@@ -268,7 +268,11 @@ def _safe_description(value):
 
 
 def _build_commands(profile, interface, description, via):
-    """Build executable and redacted command plans for a new tunnel."""
+    """Build dual-stack executable and redacted plans for a new tunnel.
+
+    The first address of each IP family is applied to KeeneticOS. Every peer
+    AllowedIPs entry is preserved using the family-specific Keenetic syntax.
+    """
     if not SAFE_INTERFACE_PATTERN.fullmatch(interface):
         raise WireGuardConfigError('Имя интерфейса должно выглядеть как Wireguard2')
     warnings = []
@@ -277,14 +281,23 @@ def _build_commands(profile, interface, description, via):
     commands.append(f'wireguard private-key {profile.private_key}')
     preview.append('wireguard private-key ***')
 
-    ipv4_addresses = [ipaddress.ip_interface(value) for value in profile.addresses if ':' not in value]
-    if not ipv4_addresses:
-        raise WireGuardConfigError('В конфигурации нет IPv4 Address, нужного текущему менеджеру маршрутов')
-    address = ipv4_addresses[0]
-    commands.append(f'ip address {address.ip} {address.network.netmask}')
-    preview.append(commands[-1])
-    if len(profile.addresses) > 1:
-        warnings.append('В Keenetic импортирован только первый IPv4 Address')
+    addresses_by_family = {4: [], 6: []}
+    for value in profile.addresses:
+        address = ipaddress.ip_interface(value)
+        addresses_by_family[address.version].append(address)
+    if not addresses_by_family[4] and not addresses_by_family[6]:
+        raise WireGuardConfigError('В конфигурации нет IPv4 или IPv6 Address')
+    if addresses_by_family[4]:
+        address = addresses_by_family[4][0]
+        commands.append(f'ip address {address.ip} {address.network.netmask}')
+        preview.append(commands[-1])
+    if addresses_by_family[6]:
+        address = addresses_by_family[6][0]
+        commands.append(f'ipv6 address {address.with_prefixlen}')
+        preview.append(commands[-1])
+    for version, label in ((4, 'IPv4'), (6, 'IPv6')):
+        if len(addresses_by_family[version]) > 1:
+            warnings.append(f'В Keenetic импортирован только первый {label} Address')
     if profile.dns_servers:
         warnings.append('DNS из WireGuard-конфига не меняет DNS домашней сети автоматически')
     if profile.mtu is not None:
@@ -296,12 +309,11 @@ def _build_commands(profile, interface, description, via):
         if peer.endpoint:
             commands.append(f'endpoint {peer.endpoint}')
             preview.append(commands[-1])
-        ipv4_allowed = [ipaddress.ip_network(value) for value in peer.allowed_ips if ':' not in value]
-        for network in ipv4_allowed:
-            commands.append(f'allow-ips {network.network_address} {network.netmask}')
+        for value in peer.allowed_ips:
+            network = ipaddress.ip_network(value)
+            suffix = network.netmask if network.version == 4 else network.prefixlen
+            commands.append(f'allow-ips {network.network_address} {suffix}')
             preview.append(commands[-1])
-        if any(':' in value for value in peer.allowed_ips):
-            warnings.append('IPv6 AllowedIPs пропущены; текущая маршрутизация проекта работает с IPv4')
         if peer.persistent_keepalive is not None:
             commands.append(f'keepalive-interval {peer.persistent_keepalive}')
             preview.append(commands[-1])

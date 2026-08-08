@@ -1,6 +1,7 @@
 """SQLite storage for domains managed by the route synchronizer."""
 
 import os
+import ipaddress
 import platform
 import re
 import sqlite3
@@ -355,7 +356,7 @@ def remove_managed_domain(domain, source=None):
 
 
 def domain_addresses(domain_id):
-    """Return remembered IPv4 addresses for one managed domain, newest first."""
+    """Return remembered IPv4 and IPv6 addresses for one domain, newest first."""
     with connect() as connection:
         return connection.execute(
             '''SELECT address, first_seen_at, last_seen_at
@@ -422,14 +423,16 @@ def record_domain_route(domain, address, interface):
 
     Args:
         domain: Canonical managed domain name.
-        address: Resolved IPv4 address without a prefix.
+        address: Resolved IPv4 or IPv6 host address without a prefix.
         interface: Full Keenetic interface name used by the route.
 
     Side effects:
-        Upserts the ``/32`` route and an active ``dns-domain`` ownership claim.
-        Existing claims from another domain or imported source are preserved.
+        Upserts an exact ``/32`` or ``/128`` route and an active ``dns-domain``
+        ownership claim. Existing claims from another domain or imported
+        source are preserved.
     """
-    network = f'{address}/32'
+    parsed = ipaddress.ip_address(address)
+    network = f'{parsed}/{parsed.max_prefixlen}'
     now = utc_now()
     with connect() as connection:
         connection.execute(
@@ -606,7 +609,7 @@ def inventory_services():
 
 
 def lookup_route_owners(address):
-    """Return active source claims for all stored routes containing an IPv4 address."""
+    """Return active claims for stored routes containing an IPv4/IPv6 address."""
     import ipaddress
 
     target = ipaddress.ip_address(address)

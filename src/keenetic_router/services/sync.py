@@ -1,4 +1,4 @@
-"""Resolve managed domains and apply new IPv4 routes to Keenetic."""
+"""Resolve managed domains and apply new IPv4 and IPv6 routes to Keenetic."""
 
 from dataclasses import dataclass
 
@@ -6,7 +6,9 @@ from keenetic_router.core.router import (
     add_route_smart,
     create_router_client,
     discover_wireguard_tunnels,
+    normalize_route_network,
     normalize_tunnel_name,
+    parse_wireguard_routes_output,
     resolve_domain,
 )
 from keenetic_router.services.registry import (
@@ -32,9 +34,9 @@ class SyncSummary:
 def sync_domains(domains=None, dry_run=False):
     """Synchronize managed domains with the router.
 
-    Only newly observed IPv4 addresses are added. Previously known addresses
-    are intentionally retained in this first version to avoid deleting a
-    working route after a temporary DNS or CDN change.
+    Newly observed A and AAAA addresses are added as exact ``/32`` and ``/128``
+    routes. Previously known addresses are intentionally retained to avoid
+    deleting a working route after a temporary DNS or CDN change.
     """
     selected = [row for row in (domains or list_managed_domains()) if row['enabled']]
     run_id = start_run()
@@ -48,14 +50,20 @@ def sync_domains(domains=None, dry_run=False):
         if not dry_run:
             client = create_router_client()
             short_to_full, full_to_short = discover_wireguard_tunnels(client)
+            existing_routes = {
+                route['network']: route['interface']
+                for command in ('show ip route', 'show ipv6 route')
+                for route in parse_wireguard_routes_output(client.command(command))
+            }
         else:
             short_to_full, full_to_short = {}, {}
+            existing_routes = {}
 
         for domain in selected:
             addresses = resolve_domain(domain['domain'])
             if not addresses:
                 summary.errors += 1
-                record_event(run_id, domain['id'], 'resolve-error', None, 'DNS не вернул IPv4-адреса')
+                record_event(run_id, domain['id'], 'resolve-error', None, 'DNS не вернул IP-адреса')
                 continue
 
             tunnel = normalize_tunnel_name(domain['tunnel'], short_to_full, full_to_short)
@@ -70,7 +78,14 @@ def sync_domains(domains=None, dry_run=False):
                     summary.unchanged += 1
                     continue
 
-                success, detail = add_route_smart(client, address, '255.255.255.255', short_to_full[tunnel])
+                network = normalize_route_network(address).with_prefixlen
+                success, detail = add_route_smart(
+                    client,
+                    network,
+                    None,
+                    short_to_full[tunnel],
+                    existing_routes=existing_routes,
+                )
                 if success:
                     record_resolved_address(domain['id'], address)
                     record_domain_route(domain['domain'], address, short_to_full[tunnel])

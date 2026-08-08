@@ -6,8 +6,9 @@ legacy local installations can continue to use ``ROUTER_*`` environment
 variables.  Passwords configured at runtime are never written to disk here.
 """
 
-import os
+import ipaddress
 import logging
+import os
 import re
 import socket
 import time
@@ -350,23 +351,114 @@ class KeeneticSSH:
 
 
 def is_ip_address(value):
-    """Проверяет является ли строка IP-адресом"""
+    """Return whether a value is an IPv4/IPv6 address or CIDR network.
+
+    Args:
+        value: Text that may contain a host address or a network prefix.
+
+    Returns:
+        ``True`` for valid IPv4 and IPv6 values, otherwise ``False``.
+    """
     try:
-        socket.inet_aton(value.split('/')[0])
+        text = str(value).strip()
+        if '/' in text:
+            ipaddress.ip_network(text, strict=False)
+        else:
+            ipaddress.ip_address(text)
         return True
-    except socket.error:
+    except ValueError:
         return False
 
 
 def resolve_domain(domain):
-    """Получает IP-адреса для домена"""
-    ips = set()
+    """Resolve all current IPv4 A and IPv6 AAAA addresses for a domain.
+
+    Args:
+        domain: DNS hostname accepted by the local system resolver.
+
+    Returns:
+        Stable tuple-like list ordered by IP version and numeric address.
+        Duplicate resolver answers are removed.
+    """
+    addresses = set()
     try:
-        _, _, ip_list = socket.gethostbyname_ex(domain)
-        ips.update(ip_list)
-    except Exception:
+        for family, _type, _proto, _canonical, sockaddr in socket.getaddrinfo(
+            domain,
+            None,
+            family=socket.AF_UNSPEC,
+            type=socket.SOCK_STREAM,
+        ):
+            if family not in {socket.AF_INET, socket.AF_INET6}:
+                continue
+            try:
+                addresses.add(ipaddress.ip_address(sockaddr[0]))
+            except ValueError:
+                continue
+    except socket.gaierror:
         pass
-    return sorted(ips)
+    return [
+        str(address)
+        for address in sorted(addresses, key=lambda item: (item.version, int(item)))
+    ]
+
+
+def normalize_route_network(address, mask=None):
+    """Return one canonical IPv4 or IPv6 network for a route operation.
+
+    Args:
+        address: Host address or CIDR prefix.
+        mask: Optional IPv4 dotted netmask retained for legacy callers. IPv6
+            callers should include the prefix in ``address`` or omit it for a
+            host ``/128`` route.
+
+    Returns:
+        :class:`ipaddress.IPv4Network` or :class:`ipaddress.IPv6Network`.
+
+    Raises:
+        ValueError: If the address/mask pair is malformed or combines an IPv6
+            address with an IPv4 dotted mask.
+    """
+    text = str(address).strip()
+    if '/' in text:
+        return ipaddress.ip_network(text, strict=False)
+    parsed = ipaddress.ip_address(text)
+    if parsed.version == 4:
+        return ipaddress.ip_network(f'{parsed}/{mask or 32}', strict=False)
+    if mask not in {None, '', 128, '128'}:
+        raise ValueError('Для IPv6 укажите длину префикса через /, например /64')
+    return ipaddress.ip_network(f'{parsed}/128', strict=False)
+
+
+def route_add_command(network, interface):
+    """Build a KeeneticOS static-route command for either IP family.
+
+    Args:
+        network: Any value accepted by :func:`normalize_route_network`.
+        interface: Full Keenetic interface name such as ``Wireguard1``.
+
+    Returns:
+        Executable KeeneticOS CLI command without secrets.
+    """
+    route = (
+        network
+        if isinstance(network, (ipaddress.IPv4Network, ipaddress.IPv6Network))
+        else normalize_route_network(network)
+    )
+    if route.version == 4:
+        return f'ip route {route.network_address} {route.netmask} 0.0.0.0 {interface}'
+    return f'ipv6 route {route.with_prefixlen} {interface}'
+
+
+def route_delete_command(network, interface):
+    """Build a KeeneticOS route-removal command for either IP family."""
+    route = (
+        network
+        if isinstance(network, (ipaddress.IPv4Network, ipaddress.IPv6Network))
+        else normalize_route_network(network)
+    )
+    if route.version == 4:
+        return f'no ip route {route.network_address} {route.netmask} {interface}'
+    return f'no ipv6 route {route.with_prefixlen} {interface}'
 
 
 def prefix_to_mask(prefix):
@@ -392,23 +484,61 @@ def parse_windows_route(line):
 
 
 def parse_wireguard_routes_output(output):
-    """Парсит вывод show ip route и возвращает WireGuard маршруты"""
-    lines = output.split('\n')
+    """Parse IPv4 tables or structured IPv6 route output from KeeneticOS.
+
+    Args:
+        output: Text returned by ``show ip route`` or ``show ipv6 route``.
+
+    Returns:
+        Unique mappings with canonical network, interface, and metric fields.
+    """
     routes = []
-    for line in lines:
+    for line in str(output).splitlines():
         if 'Wireguard' in line or (' wg' in line.lower() and 'wireless' not in line.lower()):
             parts = line.split()
-            if len(parts) >= 4:
+            if len(parts) >= 2 and '/' in parts[0]:
                 network = parts[0]
                 for i, part in enumerate(parts):
                     if 'Wireguard' in part or part.lower().startswith('wg'):
+                        try:
+                            canonical = str(ipaddress.ip_network(network, strict=False))
+                        except ValueError:
+                            break
                         routes.append({
-                            'network': network,
+                            'network': canonical,
                             'interface': part,
-                            'priority': parts[i+2] if len(parts) > i+2 else '1000'
+                            'priority': parts[i + 2] if len(parts) > i + 2 else '1000',
                         })
                         break
-    return routes
+
+    for block in re.split(r'^\s*route6:\s*$', str(output), flags=re.MULTILINE):
+        destination = re.search(r'^\s*destination:\s*(\S+)', block, flags=re.MULTILINE)
+        interface = re.search(r'^\s*interface:\s*(\S+)', block, flags=re.MULTILINE)
+        metric = re.search(r'^\s*metric:\s*(\S+)', block, flags=re.MULTILINE)
+        if not destination or not interface or 'wireguard' not in interface.group(1).lower():
+            continue
+        try:
+            parsed_network = ipaddress.ip_network(destination.group(1), strict=False)
+        except ValueError:
+            continue
+        static = re.search(
+            r'^\s*static:\s*(yes|no)',
+            block,
+            flags=re.MULTILINE | re.IGNORECASE,
+        )
+        if parsed_network.prefixlen == 0 or (static and static.group(1).lower() != 'yes'):
+            continue
+        canonical = str(parsed_network)
+        routes.append({
+            'network': canonical,
+            'interface': interface.group(1),
+            'priority': metric.group(1) if metric else '1000',
+        })
+
+    unique = {}
+    for route in routes:
+        unique[(route['network'], route['interface'])] = route
+    return list(unique.values())
 
 
 @dataclass(frozen=True)
@@ -564,44 +694,45 @@ def full_interface_name(name, short_to_full=None, full_to_short=None):
     return short_name
 
 
-def route_exists(keenetic, ip, mask):
-    """Проверяет, существует ли уже маршрут для данного IP"""
+def route_exists(keenetic, address, mask=None):
+    """Return whether an exact IPv4/IPv6 WireGuard route already exists."""
     try:
-        output = keenetic.command('show ip route')
-
-        # Конвертируем маску в CIDR префикс
-        mask_parts = mask.split('.')
-        cidr_prefix = sum(bin(int(p)).count('1') for p in mask_parts)
-        target_cidr = f"{ip}/{cidr_prefix}"
-
-        for line in output.split('\n'):
-            if 'Wireguard' in line or ' wg' in line.lower():
-                # Извлекаем сеть из строки (первый столбец)
-                parts = line.split()
-                if len(parts) >= 1:
-                    network = parts[0]  # Например "64.233.0.0/16"
-                    if network == target_cidr:
-                        # Маршрут найден, извлекаем интерфейс
-                        for part in parts:
-                            if 'Wireguard' in part or part.lower().startswith('wg'):
-                                return True, part
+        target = normalize_route_network(address, mask)
+        command = 'show ip route' if target.version == 4 else 'show ipv6 route'
+        for route in parse_wireguard_routes_output(keenetic.command(command)):
+            if route['network'] == str(target):
+                return True, route['interface']
         return False, None
-    except Exception as e:
+    except (OSError, ValueError):
         return False, None
 
 
-def add_route_smart(keenetic, ip, mask, interface):
-    """
-    Умное добавление маршрута с проверкой дубликатов.
+def add_route_smart(keenetic, address, mask, interface, *, existing_routes=None):
+    """Add or move an exact IPv4/IPv6 route without creating duplicates.
 
-    Если маршрут уже существует:
-    - На том же интерфейсе → ничего не делаем (обновление не нужно)
-    - На другом интерфейсе → удаляем старый, добавляем новый
+    Args:
+        keenetic: Connected router client.
+        address: Host address or CIDR network.
+        mask: Optional legacy IPv4 netmask; use ``None`` for IPv6/CIDR input.
+        interface: Target full WireGuard interface name.
+        existing_routes: Optional mutable ``network -> interface`` snapshot.
+            Reusing one snapshot avoids downloading the full routing table for
+            every DNS answer during a batch sync. Successful changes update it.
 
-    Возвращает: (success, message)
+    Returns:
+        Pair ``(success, human_message)``. An existing route on another
+        interface is replaced; an identical route is left unchanged.
     """
-    # Проверяем существует ли маршрут
-    exists, existing_interface = route_exists(keenetic, ip, mask)
+    try:
+        network = normalize_route_network(address, mask)
+    except ValueError as error:
+        return False, f'❌ Ошибка: {error}'
+    network_text = network.with_prefixlen
+    if existing_routes is None:
+        exists, existing_interface = route_exists(keenetic, network_text)
+    else:
+        existing_interface = existing_routes.get(network_text)
+        exists = existing_interface is not None
 
     if exists:
         # Нормализуем имена для сравнения
@@ -613,17 +744,17 @@ def add_route_smart(keenetic, ip, mask, interface):
             return True, f"⏭️  Уже есть в {existing_interface}"
         else:
             # Маршрут на другом интерфейсе - заменяем
-            delete_cmd = f'no ip route {ip} {mask} {existing_interface}'
-            keenetic.command(delete_cmd)
+            keenetic.command(route_delete_command(network, existing_interface))
 
             # Небольшая пауза перед добавлением нового
             time.sleep(0.3)
 
     # Добавляем новый маршрут
-    add_cmd = f'ip route {ip} {mask} 0.0.0.0 {interface}'
-    result = keenetic.command(add_cmd)
+    result = keenetic.command(route_add_command(network, interface))
 
     if 'error' not in result.lower():
+        if existing_routes is not None:
+            existing_routes[network_text] = interface
         if exists:
             return True, f"🔄 Заменён: {existing_interface} → {interface}"
         else:

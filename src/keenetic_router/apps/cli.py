@@ -10,10 +10,12 @@ from keenetic_router.core.router import (
     create_router_client,
     discover_wireguard_tunnels,
     is_ip_address,
+    normalize_route_network,
     normalize_tunnel_name,
     parse_wireguard_routes_output,
-    prefix_to_mask,
     resolve_domain,
+    route_add_command,
+    route_delete_command,
     add_route_smart,
 )
 from keenetic_router.core.onboarding import (
@@ -131,11 +133,10 @@ def refresh_tunnel_maps(keenetic):
     return TUNNEL_INTERFACES, TUNNEL_FULL_NAMES
 
 
-def add_route(keenetic, ip, mask, tunnel, description=''):
-    """Добавить маршрут через WireGuard"""
+def add_route(keenetic, network, tunnel, description=''):
+    """Add one IPv4 or IPv6 network through a selected WireGuard tunnel."""
     interface = TUNNEL_INTERFACES[tunnel]
-    cmd = f'ip route {ip} {mask} 0.0.0.0 {interface}'
-    result = keenetic.command(cmd)
+    result = keenetic.command(route_add_command(network, interface))
 
     if description:
         print(f"   📝 Описание: {description}")
@@ -143,15 +144,18 @@ def add_route(keenetic, ip, mask, tunnel, description=''):
     return result
 
 
-def delete_route(keenetic, ip, mask, interface):
-    """Удалить маршрут"""
-    cmd = f'no ip route {ip} {mask} {interface}'
-    return keenetic.command(cmd)
+def delete_route(keenetic, network, interface):
+    """Remove one IPv4 or IPv6 network from a WireGuard interface."""
+    return keenetic.command(route_delete_command(network, interface))
 
 
 def list_routes(keenetic):
-    """Показать все маршруты через WireGuard"""
-    return parse_wireguard_routes_output(keenetic.command('show ip route'))
+    """Return all IPv4 and IPv6 routes through WireGuard interfaces."""
+    return [
+        route
+        for command in ('show ip route', 'show ipv6 route')
+        for route in parse_wireguard_routes_output(keenetic.command(command))
+    ]
 
 
 def save_config(keenetic):
@@ -198,28 +202,27 @@ def cmd_add(args):
             return
 
         added = 0
-        for ip, source in targets:
-            mask = '255.255.255.255' if '/' not in ip else None
-
-            if mask is None:
-                ip, prefix = ip.split('/')
-                mask = prefix_to_mask(int(prefix))
-
-            # Умное добавление с проверкой дубликатов
+        for address, source in targets:
+            network = normalize_route_network(address)
             interface = TUNNEL_INTERFACES[tunnel]
-            success, message = add_route_smart(kt, ip, mask, interface)
+            success, message = add_route_smart(
+                kt,
+                network.with_prefixlen,
+                None,
+                interface,
+            )
 
             if success:
-                print(f"   ✅ {ip} → {tunnel.upper()} ({message})")
+                print(f"   ✅ {network.with_prefixlen} → {tunnel.upper()} ({message})")
                 added += 1
                 if source.startswith('DNS:'):
                     domain = source.removeprefix('DNS:')
                     row = find_managed_domain(domain)
                     if row is not None:
-                        record_resolved_address(row['id'], ip)
-                        record_domain_route(domain, ip, interface)
+                        record_resolved_address(row['id'], address)
+                        record_domain_route(domain, address, interface)
             else:
-                print(f"   ❌ {ip}: {message}")
+                print(f"   ❌ {address}: {message}")
 
         if added > 0:
             print("\n💾 Сохранение конфигурации...")
@@ -302,11 +305,11 @@ def cmd_inventory_summary(args):
 
 
 def cmd_inventory_lookup(args):
-    """Show all known route owners for an IPv4 address without changing routes."""
+    """Show all known route owners for an IPv4/IPv6 address without changes."""
     try:
         owners = lookup_route_owners(args.address)
     except ValueError:
-        print('Введите корректный IPv4-адрес.')
+        print('Введите корректный IPv4- или IPv6-адрес.')
         return
     if not owners:
         print('В инвентаризации не найден маршрут, покрывающий этот IP.')
@@ -364,16 +367,12 @@ def cmd_remove(args):
             if args.target:
                 if args.target in route['network']:
                     if tunnel is None or tunnel in iface_lower or full_name in iface_lower:
-                        ip, prefix = route['network'].split('/') if '/' in route['network'] else (route['network'], '32')
-                        mask = prefix_to_mask(int(prefix))
-                        delete_route(kt, ip, mask, route['interface'])
+                        delete_route(kt, route['network'], route['interface'])
                         print(f"   ❌ Удалён: {route['network']}")
                         removed += 1
             else:
                 if tunnel and (tunnel in iface_lower or full_name in iface_lower):
-                    ip, prefix = route['network'].split('/') if '/' in route['network'] else (route['network'], '32')
-                    mask = prefix_to_mask(int(prefix))
-                    delete_route(kt, ip, mask, route['interface'])
+                    delete_route(kt, route['network'], route['interface'])
                     print(f"   ❌ Удалён: {route['network']}")
                     removed += 1
 
@@ -399,13 +398,13 @@ def cmd_list(args):
         routes = list_routes(kt)
 
         print("\n📋 Маршруты через WireGuard:\n")
-        print(f"{'Сеть':<20} {'Туннель':<15} {'Приоритет'}")
-        print("-" * 50)
+        print(f"{'Сеть':<44} {'Туннель':<15} {'Приоритет'}")
+        print("-" * 74)
 
         for route in routes:
-            print(f"{route['network']:<20} {route['interface']:<15} {route['priority']}")
+            print(f"{route['network']:<44} {route['interface']:<15} {route['priority']}")
 
-        print("-" * 50)
+        print("-" * 74)
         print(f"Всего: {len(routes)} маршрутов")
 
     finally:
@@ -423,16 +422,8 @@ def cmd_clear(args):
 
         routes = list_routes(kt)
         for route in routes:
-            network = route['network']
-            if '/' in network:
-                ip, prefix = network.split('/')
-                mask = prefix_to_mask(int(prefix))
-            else:
-                ip = network
-                mask = '255.255.255.255'
-
-            delete_route(kt, ip, mask, route['interface'])
-            print(f"   ❌ {network}")
+            delete_route(kt, route['network'], route['interface'])
+            print(f"   ❌ {route['network']}")
 
         print("\n💾 Сохранение конфигурации...")
         save_config(kt)
