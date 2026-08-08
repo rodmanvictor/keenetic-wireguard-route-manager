@@ -33,9 +33,9 @@ dependencies = [
 ]
 
 [project.urls]
-Documentation = "https://github.com/rodmanvictor/keenetic-wireguard-route-manager"
-Issues = "https://github.com/rodmanvictor/keenetic-wireguard-route-manager/issues"
-Source = "https://github.com/rodmanvictor/keenetic-wireguard-route-manager"
+Documentation = "https://github.com/rodmanvictor/paketych"
+Issues = "https://github.com/rodmanvictor/paketych/issues"
+Source = "https://github.com/rodmanvictor/paketych"
 
 [project.scripts]
 paketych = "keenetic_router.apps.desktop:run"

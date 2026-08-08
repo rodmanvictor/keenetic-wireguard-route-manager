@@ -1,5 +1,5 @@
 {
-  "name": "keenetic-wireguard-route-manager",
+  "name": "paketych",
   "private": true,
   "scripts": {
     "docs:check": "node scripts/check-docs.mjs",

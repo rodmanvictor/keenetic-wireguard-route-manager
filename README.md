@@ -67,7 +67,7 @@ Keenetic.
 
 ### Windows 10 и 11
 
-1. Откройте [последний выпуск](https://github.com/rodmanvictor/keenetic-wireguard-route-manager/releases/latest).
+1. Откройте [последний выпуск](https://github.com/rodmanvictor/paketych/releases/latest).
 2. Скачайте `paketych-0.3.0-windows-x86_64.zip`.
 3. Нажмите на архив правой кнопкой и выберите **«Извлечь всё»**.
 4. Откройте полученную папку и запустите **«Пакетыч.exe»**.
@@ -83,7 +83,7 @@ ZIP и не переносите один EXE отдельно: лежащий �
 
 ### Ubuntu, Debian и Linux Mint
 
-1. Откройте [последний выпуск](https://github.com/rodmanvictor/keenetic-wireguard-route-manager/releases/latest).
+1. Откройте [последний выпуск](https://github.com/rodmanvictor/paketych/releases/latest).
 2. Скачайте `paketych_0.3.0_amd64.deb`.
 3. Откройте файл двойным щелчком и нажмите «Установить».
 4. Запустите **Пакетыч** из меню приложений.
@@ -276,8 +276,8 @@ rm -r ~/.config/keenetic-route-manager ~/.local/share/keenetic-route-manager
 ## Запустить из исходников
 
 ```bash
-git clone https://github.com/rodmanvictor/keenetic-wireguard-route-manager.git
-cd keenetic-wireguard-route-manager
+git clone https://github.com/rodmanvictor/paketych.git
+cd paketych
 python3 -m venv .venv-build
 .venv-build/bin/python -m pip install -r requirements-dev.txt -e .
 npm run test:python
