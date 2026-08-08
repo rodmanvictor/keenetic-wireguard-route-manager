@@ -45,7 +45,7 @@ Windows-файлы версии 0.3.0 не подписаны Authenticode. Smar
 ## macOS DMG
 
 Две macOS-сборки создаются на нативных GitHub-hosted runners: ARM64 на
-`macos-15`, Intel x86-64 на `macos-15-intel`. Поддерживаемая команда
+`macos-26`, Intel x86-64 на `macos-26-intel`. Поддерживаемая команда
 `flet build macos` формирует `PackeTech.app` для целевой архитектуры, а
 `scripts/package-macos.py` добавляет внутрь standalone `kwan`,
 ставит ad-hoc подпись и собирает DMG через `hdiutil`.
@@ -98,7 +98,7 @@ python scripts/package-macos.py
 ## GitHub Actions
 
 `.github/workflows/release.yml` запускается вручную или тегом `v*` на
-`ubuntu-latest`, `windows-latest`, `macos-15` и `macos-15-intel`. Все matrix-job
-выполняют offline-тесты и собирают нативные GUI/CLI через PyInstaller. Теговый
-запуск прикладывает Linux, Windows и обе macOS-архитектуры к одному GitHub
-Release.
+`ubuntu-latest`, `windows-latest`, `macos-26` и `macos-26-intel`. Все matrix-job
+выполняют offline-тесты. Linux и Windows собираются через PyInstaller, macOS —
+штатной командой Flet поверх Flutter/Xcode. Теговый запуск прикладывает Linux,
+Windows и обе macOS-архитектуры к одному GitHub Release.
