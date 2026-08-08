@@ -103,9 +103,10 @@ sudo apt install ./packetech_0.3.0_amd64.deb
 ### macOS: Apple Silicon и Intel
 
 1. Откройте [последний выпуск](https://github.com/rodmanvictor/packetech/releases/latest).
-2. Скачайте единый файл `packetech-0.3.0-macos-universal.dmg`.
-3. Откройте DMG и перетащите `PackeTech.app` в `Applications`.
-4. В `Applications` нажмите по приложению правой кнопкой и выберите **«Открыть»**.
+2. Для Mac на M1/M2/M3/M4/M5 скачайте `packetech-0.3.0-macos-arm64.dmg`.
+3. Для Mac на Intel скачайте `packetech-0.3.0-macos-x86_64.dmg`.
+4. Откройте DMG и перетащите `PackeTech.app` в `Applications`.
+5. В `Applications` нажмите по приложению правой кнопкой и выберите **«Открыть»**.
 
 Сборка подписана технической ad-hoc подписью, но пока не нотарифицирована Apple.
 Поэтому обычный двойной щелчок при первом запуске может быть заблокирован.
@@ -317,7 +318,7 @@ npm run docs:check
 - `packetech_0.3.0_amd64.deb`;
 - `packetech-0.3.0-linux-x86_64.tar.gz`;
 - `packetech-0.3.0-windows-x86_64.zip`;
-- `packetech-0.3.0-macos-universal.dmg` для Apple Silicon и Intel;
+- `packetech-0.3.0-macos-arm64.dmg` и `packetech-0.3.0-macos-x86_64.dmg`;
 - контрольные суммы SHA-256 для каждой системы.
 
 Архитектура и эксплуатационные заметки: [docs/README.md](docs/README.md).

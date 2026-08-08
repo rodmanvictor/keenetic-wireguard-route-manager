@@ -7,6 +7,8 @@ result requires a separately installed Python runtime.
 """
 
 from pathlib import Path
+import os
+import platform
 import shutil
 import subprocess
 import sys
@@ -66,6 +68,8 @@ def _build_macos(root: Path) -> None:
     with Image.open(icon_source) as icon:
         icon.resize((1024, 1024), Image.Resampling.NEAREST).save(icon_target)
 
+    default_arch = 'arm64' if platform.machine().lower() in {'arm64', 'aarch64'} else 'x86_64'
+    architecture = os.getenv('PACKETECH_MACOS_ARCH', default_arch)
     command = [
         shutil.which('flet') or str(Path(sys.executable).with_name('flet')),
         'build',
@@ -90,8 +94,7 @@ def _build_macos(root: Path) -> None:
         '--python-version',
         '3.12',
         '--arch',
-        'arm64',
-        'x86_64',
+        architecture,
         '--no-rich-output',
         '--yes',
     ]

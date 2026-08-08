@@ -23,6 +23,14 @@ jobs:
             platform: linux
           - os: windows-latest
             platform: windows
+          - os: macos-26
+            platform: macos-arm64
+            macos_arch: arm64
+            flutter_arch: arm64
+          - os: macos-26-intel
+            platform: macos-x86_64
+            macos_arch: x86_64
+            flutter_arch: x64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -30,6 +38,14 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
+      - name: Install Flutter for macOS
+        if: runner.os == 'macOS'
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: "3.44.8"
+          architecture: ${{ matrix.flutter_arch }}
+          cache: true
       - name: Install build dependencies
         run: python -m pip install -r requirements-dev.txt -e .
       - name: Run tests
@@ -40,113 +56,31 @@ jobs:
         run: python scripts/build-cli.py
       - name: Build desktop application
         run: python scripts/build-desktop.py
+        env:
+          PACKETECH_MACOS_ARCH: ${{ matrix.macos_arch }}
       - name: Archive native applications
         if: runner.os == 'Linux'
         run: python scripts/package-linux.py
       - name: Archive native Windows applications
         if: runner.os == 'Windows'
         run: python scripts/package-windows.py
+      - name: Archive native macOS application
+        if: runner.os == 'macOS'
+        run: python scripts/package-macos.py
       - uses: actions/upload-artifact@v4
         with:
           name: packetech-${{ matrix.platform }}
           path: dist/release/*
           if-no-files-found: error
 
-  macos-cli:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-26
-            architecture: arm64
-          - os: macos-26-intel
-            architecture: x86_64
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-      - name: Install build dependencies
-        run: python -m pip install -r requirements-dev.txt -e .
-      - name: Run tests
-        run: python -m unittest discover -s tests -v
-        env:
-          PYTHONPATH: src
-      - name: Build native synchronizer
-        run: |
-          python scripts/build-cli.py
-          mv dist/cli/kwan dist/cli/kwan-${{ matrix.architecture }}
-      - uses: actions/upload-artifact@v4
-        with:
-          name: packetech-macos-cli-${{ matrix.architecture }}
-          path: dist/cli/kwan-${{ matrix.architecture }}
-          if-no-files-found: error
-
-  macos:
-    needs: macos-cli
-    runs-on: macos-26
-    env:
-      PYTHONUTF8: "1"
-      PYTHONIOENCODING: utf-8
-      FLET_CLI_NO_RICH_OUTPUT: "1"
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-      - name: Install Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          flutter-version: "3.44.8"
-          architecture: arm64
-          cache: true
-      - name: Install Rosetta 2
-        run: sudo softwareupdate --install-rosetta --agree-to-license
-      - name: Install build dependencies
-        run: python -m pip install -r requirements-dev.txt -e .
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: packetech-macos-cli-*
-          path: dist/cli
-          merge-multiple: true
-      - name: Verify native synchronizers
-        run: |
-          file dist/cli/kwan-arm64
-          file dist/cli/kwan-x86_64
-      - name: Build universal desktop application
-        run: python scripts/build-desktop.py
-      - name: Archive universal macOS application
-        run: python scripts/package-macos.py
-      - uses: actions/upload-artifact@v4
-        with:
-          name: packetech-macos-universal
-          path: dist/release/*
-          if-no-files-found: error
-
   release:
     if: startsWith(github.ref, 'refs/tags/')
-    needs: [build, macos]
+    needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Download Linux release
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
-          name: packetech-linux
-          path: artifacts/linux
-      - name: Download Windows release
-        uses: actions/download-artifact@v4
-        with:
-          name: packetech-windows
-          path: artifacts/windows
-      - name: Download macOS release
-        uses: actions/download-artifact@v4
-        with:
-          name: packetech-macos-universal
-          path: artifacts/macos
+          path: artifacts
       - uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
