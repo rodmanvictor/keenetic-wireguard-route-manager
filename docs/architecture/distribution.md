@@ -45,8 +45,9 @@ Windows-файлы версии 0.3.0 не подписаны Authenticode. Smar
 ## macOS DMG
 
 Две macOS-сборки создаются на нативных GitHub-hosted runners: ARM64 на
-`macos-15`, Intel x86-64 на `macos-15-intel`. PyInstaller формирует
-`PackeTech.app`, а `scripts/package-macos.py` добавляет внутрь standalone `kwan`,
+`macos-15`, Intel x86-64 на `macos-15-intel`. Поддерживаемая команда
+`flet build macos` формирует `PackeTech.app` для целевой архитектуры, а
+`scripts/package-macos.py` добавляет внутрь standalone `kwan`,
 ставит ad-hoc подпись и собирает DMG через `hdiutil`.
 
 После первого подключения приложение регистрирует
