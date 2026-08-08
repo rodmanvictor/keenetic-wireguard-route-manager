@@ -28,7 +28,35 @@
 
 > **Текущий уровень:** публичная beta для Windows 10/11, macOS и Linux x86-64.
 
-![Главный экран PackeTech](docs/images/paketych-domains.png)
+## Как выглядит
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <strong>Сайты и маршруты</strong><br>
+      Добавить домен, выбрать VPN и проверить, что маршрут включён.<br><br>
+      <a href="docs/images/paketych-domains.png">
+        <img src="docs/images/paketych-domains.png" alt="Главный экран PackeTech со списком сайтов и выбранным WireGuard-маршрутом">
+      </a>
+    </td>
+    <td width="50%" valign="top">
+      <strong>Настройка WireGuard</strong><br>
+      Профили показаны человеческими именами из Keenetic, а не только wg0 и wg1.<br><br>
+      <a href="docs/images/paketych-vpn.png">
+        <img src="docs/images/paketych-vpn.png" alt="Управление WireGuard-профилями в PackeTech">
+      </a>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center">
+      <strong>Первое подключение</strong><br>
+      Один раз вводите адрес Keenetic, логин и пароль — дальше PackeTech работает сам.<br><br>
+      <a href="docs/images/paketych-connect.png">
+        <img src="docs/images/paketych-connect.png" width="70%" alt="Первое подключение PackeTech к роутеру Keenetic">
+      </a>
+    </td>
+  </tr>
+</table>
 
 ## Миссия без сетевой магии
 
@@ -114,8 +142,6 @@ Python, Homebrew и Терминал для работы приложения н
 
 ## Уровень 2. Подключить роутер
 
-![Первое подключение к Keenetic](docs/images/paketych-connect.png)
-
 1. Оставьте `192.168.1.1`, если адрес роутера не меняли.
 2. Введите логин администратора. Обычно это `admin`.
 3. Введите пароль от панели Keenetic.
@@ -148,8 +174,6 @@ https://chatgpt.com/share/example?ref=home
 
 Откройте **«Настройка VPN»**. Здесь я показываю профили так, как они названы на
 роутере. `wg1` и `Wireguard1` оставляю мелкой технической подписью.
-
-![Управление WireGuard-профилями](docs/images/paketych-vpn.png)
 
 В одном окне можно:
 
