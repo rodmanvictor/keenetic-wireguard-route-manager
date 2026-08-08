@@ -9,8 +9,7 @@
 - `SHA256SUMS-linux.txt` — контрольные суммы Linux-файлов;
 - `packetech-<version>-windows-x86_64.zip` — переносимый Windows GUI и CLI;
 - `SHA256SUMS-windows.txt` — контрольная сумма Windows-архива;
-- `packetech-<version>-macos-arm64.dmg` — Apple Silicon;
-- `packetech-<version>-macos-x86_64.dmg` — Intel Mac;
+- `packetech-<version>-macos-universal.dmg` — Apple Silicon и Intel Mac;
 - отдельные SHA-256 для обеих macOS-архитектур.
 
 ## Linux-пакеты
@@ -44,11 +43,11 @@ Windows-файлы версии 0.3.0 не подписаны Authenticode. Smar
 
 ## macOS DMG
 
-Две macOS-сборки создаются на нативных GitHub-hosted runners: ARM64 на
-`macos-26`, Intel x86-64 на `macos-26-intel`. Поддерживаемая команда
-`flet build macos` формирует `PackeTech.app` для целевой архитектуры, а
-`scripts/package-macos.py` добавляет внутрь standalone `kwan`,
-ставит ad-hoc подпись и собирает DMG через `hdiutil`.
+Два нативных синхронизатора создаются на GitHub-hosted runners `macos-26` и
+`macos-26-intel`. Затем `flet build macos --arch arm64 x86_64` на Apple
+Silicon формирует универсальный `PackeTech.app`. `scripts/package-macos.py`
+добавляет внутрь оба варианта `kwan` и маленький селектор архитектуры, ставит
+ad-hoc подпись и собирает один DMG через `hdiutil`.
 
 После первого подключения приложение регистрирует
 `~/Library/LaunchAgents/ru.rodman.packetech.sync.plist`. LaunchAgent запускает
@@ -101,4 +100,4 @@ python scripts/package-macos.py
 `ubuntu-latest`, `windows-latest`, `macos-26` и `macos-26-intel`. Все matrix-job
 выполняют offline-тесты. Linux и Windows собираются через PyInstaller, macOS —
 штатной командой Flet поверх Flutter/Xcode. Теговый запуск прикладывает Linux,
-Windows и обе macOS-архитектуры к одному GitHub Release.
+Windows и универсальный macOS DMG к одному GitHub Release.
