@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <!-- A deliberately simple route symbol for Chrome's 16 px toolbar slot. -->
+  <circle cx="5" cy="5" r="2" fill="white"/>
+  <path d="M5 8v2a4 4 0 0 0 4 4h8" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="m13 10 4 4-4 4" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

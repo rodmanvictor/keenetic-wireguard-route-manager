@@ -686,10 +686,11 @@ class ChromeIntegrationTests(unittest.TestCase):
             )
             native_manifest = json.loads(result.native_manifest.read_text(encoding='utf-8'))
             self.assertEqual(extension_manifest['name'], 'PackeTech · открыть сайт')
-            self.assertEqual(extension_manifest['action']['default_icon']['32'], 'icons/icon32.png')
+            self.assertEqual(extension_manifest['action']['default_icon']['32'], 'icons/toolbar32.png')
             self.assertEqual(extension_manifest['background']['service_worker'], 'background.js')
             self.assertTrue((result.extension_directory / 'icons/icon128.png').is_file())
             self.assertTrue((result.extension_directory / 'icons/icon32.png').is_file())
+            self.assertTrue((result.extension_directory / 'icons/toolbar16.png').is_file())
             self.assertTrue((result.extension_directory / 'background.js').is_file())
             self.assertEqual(
                 native_manifest['allowed_origins'],
