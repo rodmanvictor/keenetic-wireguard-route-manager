@@ -15,7 +15,7 @@
 
 body {
   margin: 0;
-  width: 348px;
+  width: 380px;
   min-height: 360px;
   color: var(--ink);
   background:
@@ -40,21 +40,8 @@ header {
 .brand-mark {
   width: 38px;
   height: 38px;
-  border: 1px solid #3d463d;
-  border-radius: 12px;
-  display: grid;
-  place-items: center;
-  transform: rotate(-5deg);
-  background: linear-gradient(145deg, #202720, #111411);
-}
-
-.brand-mark span {
-  width: 14px;
-  height: 14px;
-  border: 3px solid var(--acid);
-  border-left-color: transparent;
-  border-radius: 50%;
-  transform: rotate(-28deg);
+  object-fit: contain;
+  image-rendering: pixelated;
 }
 
 .eyebrow, .caption, h1, .domain, .footnote { margin: 0; }
@@ -93,6 +80,7 @@ h1 { margin-top: 2px; font-size: 20px; line-height: 1.05; letter-spacing: -0.02e
   font-size: 19px;
   font-weight: 900;
 }
+.favicon img { width: 100%; height: 100%; border-radius: 11px; object-fit: cover; }
 
 .site-copy { min-width: 0; }
 .caption { color: var(--muted); font-size: 10px; letter-spacing: 0.04em; }
@@ -112,6 +100,51 @@ h1 { margin-top: 2px; font-size: 20px; line-height: 1.05; letter-spacing: -0.02e
 .status.good { color: var(--acid); background: var(--acid-dark); }
 .status.bad { color: var(--danger); background: #2c1716; }
 .status-icon { font-size: 18px; line-height: 0; }
+
+.related {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.018);
+}
+.related[hidden], .no-failures[hidden] { display: none; }
+.related-heading, .related-row {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+.related-heading { padding: 12px; }
+.related-heading strong { display: block; font-size: 12px; }
+.related-heading small { display: block; margin-top: 2px; color: var(--muted); font-size: 9px; }
+.count {
+  min-width: 22px;
+  padding: 3px 6px;
+  border-radius: 999px;
+  color: var(--acid);
+  background: var(--acid-dark);
+  text-align: center;
+  font-size: 10px;
+  font-weight: 800;
+}
+input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--acid);
+}
+.related-list {
+  max-height: 160px;
+  overflow-y: auto;
+  border-top: 1px solid var(--line);
+}
+.related-row { padding: 9px 12px; border-bottom: 1px solid rgba(42, 48, 43, 0.72); }
+.related-row:last-child { border-bottom: 0; }
+.related-copy { min-width: 0; }
+.related-domain { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 700; }
+.related-meta { display: block; margin-top: 2px; color: var(--muted); font-size: 9px; }
+.reason { color: var(--warning); font-size: 9px; font-weight: 800; white-space: nowrap; }
+.no-failures { margin: -4px 2px 0; color: #6e776c; font-size: 9px; line-height: 1.4; }
 
 .primary {
   width: 100%;

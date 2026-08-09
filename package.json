@@ -1,8 +1,11 @@
 {
   "name": "packetech",
   "private": true,
+  "type": "module",
   "scripts": {
     "docs:check": "node scripts/check-docs.mjs",
+    "sync:chrome": ".venv-build/bin/python scripts/sync-chrome-extension.py",
+    "test:extension": "node --test tests/chrome-extension.test.mjs",
     "test:python": "PYTHONPATH=src .venv-build/bin/python -m unittest discover -s tests -v"
   }
 }

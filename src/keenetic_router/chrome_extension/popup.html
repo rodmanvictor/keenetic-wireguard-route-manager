@@ -9,34 +9,59 @@
 <body>
   <main>
     <header>
-      <div class="brand-mark" aria-hidden="true"><span></span></div>
+      <img class="brand-mark" src="icons/icon48.png" alt="" aria-hidden="true" />
       <div>
         <p class="eyebrow">ПАКЕТЫЧ · CHROME</p>
         <h1>Открыть сайт</h1>
       </div>
       <div id="connection-dot" class="connection-dot pending" title="Проверка"></div>
     </header>
+
     <section class="site-card">
-      <div id="favicon" class="favicon" aria-hidden="true">↗</div>
+      <div id="favicon" class="favicon" aria-hidden="true">
+        <img id="favicon-image" alt="" hidden />
+        <span id="favicon-fallback">↗</span>
+      </div>
       <div class="site-copy">
         <p class="caption">Текущая вкладка</p>
         <p id="domain" class="domain">Определяю сайт…</p>
       </div>
     </section>
+
     <div id="status" class="status neutral">
       <span class="status-icon">•</span>
       <span id="status-text">Проверяю подключение</span>
     </div>
+
+    <section id="related" class="related" hidden>
+      <label class="related-heading">
+        <input id="select-all" type="checkbox" checked />
+        <span>
+          <strong>Проблемные ресурсы</strong>
+          <small>Картинки, скрипты и API с других адресов</small>
+        </span>
+        <span id="related-count" class="count">0</span>
+      </label>
+      <div id="related-list" class="related-list"></div>
+    </section>
+
+    <p id="no-failures" class="no-failures" hidden>
+      Других проблемных доменов не замечено. Если расширение только обновилось,
+      перезагрузите страницу один раз.
+    </p>
+
     <button id="add" class="primary" type="button" disabled>
       <span id="button-label">Добавить через VPN</span>
       <span class="arrow">→</span>
     </button>
+
     <div id="details" class="details" hidden>
       <div><span>Источник</span><strong>Chrome</strong></div>
       <div><span>Маршрут</span><strong>VPN</strong></div>
       <div><span>IP-адресов</span><strong id="ip-count">0</strong></div>
     </div>
-    <p class="footnote">Домен попадет в список временных сайтов. Его можно удалить в приложении PackeTech.</p>
+
+    <p class="footnote">Выбранные домены попадут в список временных сайтов. 404 и ошибки блокировщика расширение игнорирует.</p>
   </main>
   <script src="popup.js"></script>
 </body>
